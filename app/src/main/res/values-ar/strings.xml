@@ -41,6 +41,12 @@
     <string name="help_down_payment">المبلغ الذي تدفعه من جيبك الخاص كمقدم للقرض.</string>
     <string name="help_interest_rate">نسبة الفائدة السنوية التي يفرضها البنك على القرض.</string>
     <string name="help_loan_term">عدد الأشهر التي ستستغرقها لسداد القرض بالكامل.</string>
+    <string name="rate_type_info_title">أنواع الفوائد</string>
+    <string name="rate_type_reducing_desc">• الفائدة المتناقصة: تحسب الفائدة فقط على المبلغ المتبقي من القرض. تقل الفائدة كلما سددت أجزاءً من القرض.</string>
+    <string name="rate_type_flat_desc">• الفائدة الثابتة: تحسب الفائدة على كامل مبلغ القرض الأصلي طوال فترة السداد، مما يجعل التكلفة الفعلية (APR) أعلى بكثير من المتناقصة.</string>
+    <string name="rate_type_murabaha_desc">• المرابحة: ربح ثابت متفق عليه مسبقاً يتم توزيعه بالتساوي على الأقساط.</string>
+    <string name="rate_type_rule78_desc">• قاعدة 78: طريقة تجعل العميل يدفع معظم الفوائد في الأشهر الأولى من القرض، مما يجعل السداد المبكر مكلفاً.</string>
+    <string name="close">إغلاق</string>
     <string name="emi">القسط الشهري</string>
     <string name="pro_engine">محرك احترافي لحساب القروض</string>
     <string name="change_lang">English</string>
