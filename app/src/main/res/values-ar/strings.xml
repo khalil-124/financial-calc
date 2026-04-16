@@ -1,0 +1,47 @@
+<resources>
+    <string name="app_name">حاسبة القروض الذكية</string>
+    <string name="personal_loan">شخصي</string>
+    <string name="car_loan">سيارة</string>
+    <string name="housing_loan">سكني</string>
+    <string name="loan_category">نوع القرض</string>
+    <string name="calculator">الحاسبة</string>
+    <string name="my_loans">قروضي</string>
+    <string name="loan_parameters">بيانات القرض</string>
+    <string name="asset_price">سعر الأصل (السيارة/العقار)</string>
+    <string name="down_payment">الدفعة الأولى</string>
+    <string name="interest_rate">نسبة الفائدة (%)</string>
+    <string name="loan_term">مدة القرض (بالأشهر)</string>
+    <string name="advanced_options">خيارات متقدمة</string>
+    <string name="fee_percent">نسبة الرسوم (%)</string>
+    <string name="monthly_insurance">التأمين الشهري</string>
+    <string name="grace_period">فترة السماح (أشهر)</string>
+    <string name="interest_type">نوع الفائدة</string>
+    <string name="loan_name_placeholder">اسم القرض (مثلاً: قرض السيارة)</string>
+    <string name="save_to_my_loans">حفظ في قروضي</string>
+    <string name="financial_breakdown">التحليل المالي</string>
+    <string name="amortization_trend">مسار تسديد القرض</string>
+    <string name="total_interest">إجمالي الفوائد</string>
+    <string name="total_payment">إجمالي الدفعات</string>
+    <string name="effective_apr">نسبة الربح السنوية (APR)</string>
+    <string name="net_financing">صافي مبلغ التمويل</string>
+    <string name="verdict_high">تكلفة فائدة عالية. أنت تدفع أكثر من 50% من أصل المبلغ كفائدة.</string>
+    <string name="verdict_moderate">فائدة متوسطة. فكر في تقليل المدة لتوفير التكاليف.</string>
+    <string name="verdict_healthy">قرض صحي. عبء الفائدة ضمن الحدود الموصى بها.</string>
+    <string name="amortization_schedule">جدول السداد</string>
+    <string name="saved_calculations">الحسابات المحفوظة</string>
+    <string name="no_saved_loans">لا توجد قروض محفوظة بعد</string>
+    <string name="month">الشهر</string>
+    <string name="principal">الأصل</string>
+    <string name="interest">الفائدة</string>
+    <string name="balance">الرصيد</string>
+    <string name="loan_saved">تم حفظ القرض بنجاح</string>
+
+    <!-- Help Text -->
+    <string name="help_asset_price">السعر الكلي للشيء الذي تريد شراءه قبل خصم الدفعة الأولى.</string>
+    <string name="help_down_payment">المبلغ الذي تدفعه من جيبك الخاص كمقدم للقرض.</string>
+    <string name="help_interest_rate">نسبة الفائدة السنوية التي يفرضها البنك على القرض.</string>
+    <string name="help_loan_term">عدد الأشهر التي ستستغرقها لسداد القرض بالكامل.</string>
+    <string name="emi">القسط الشهري</string>
+    <string name="pro_engine">محرك احترافي لحساب القروض</string>
+    <string name="change_lang">English</string>
+</resources>

@@ -1,0 +1,47 @@
+<resources>
+    <string name="app_name">Smart Loan Calculator</string>
+    <string name="personal_loan">Personal</string>
+    <string name="car_loan">Car</string>
+    <string name="housing_loan">Housing</string>
+    <string name="loan_category">Loan Category</string>
+    <string name="calculator">Calculator</string>
+    <string name="my_loans">My Loans</string>
+    <string name="loan_parameters">Loan Parameters</string>
+    <string name="asset_price">Asset Price</string>
+    <string name="down_payment">Down Payment</string>
+    <string name="interest_rate">Interest Rate (%)</string>
+    <string name="loan_term">Loan Term (Months)</string>
+    <string name="advanced_options">Advanced Options</string>
+    <string name="fee_percent">Fee Percent (%)</string>
+    <string name="monthly_insurance">Monthly Insurance</string>
+    <string name="grace_period">Grace Period (Months)</string>
+    <string name="interest_type">Interest Type</string>
+    <string name="loan_name_placeholder">Loan Name (e.g. Car Loan)</string>
+    <string name="save_to_my_loans">Save to My Loans</string>
+    <string name="financial_breakdown">Financial Breakdown</string>
+    <string name="amortization_trend">Amortization Trend</string>
+    <string name="total_interest">Total Interest</string>
+    <string name="total_payment">Total Payment</string>
+    <string name="effective_apr">Effective APR</string>
+    <string name="net_financing">Net Financing</string>
+    <string name="verdict_high">High Interest Cost. You are paying more than 50% of the principal in interest.</string>
+    <string name="verdict_moderate">Moderate interest. Consider a shorter term to save on total costs.</string>
+    <string name="verdict_healthy">Healthy loan. Your interest burden is within recommended limits.</string>
+    <string name="amortization_schedule">Amortization Schedule</string>
+    <string name="saved_calculations">Saved Calculations</string>
+    <string name="no_saved_loans">No saved loans yet</string>
+    <string name="month">Month</string>
+    <string name="principal">Principal</string>
+    <string name="interest">Interest</string>
+    <string name="balance">Balance</string>
+    <string name="loan_saved">Loan saved successfully</string>
+
+    <!-- Help Text -->
+    <string name="help_asset_price">The total price of the item you want to buy.</string>
+    <string name="help_down_payment">The amount you pay upfront from your own pocket.</string>
+    <string name="help_interest_rate">The annual percentage rate charged by the bank.</string>
+    <string name="help_loan_term">How many months you will take to repay the loan.</string>
+    <string name="emi">Monthly Installment</string>
+    <string name="pro_engine">Professional Amortization Engine</string>
+    <string name="change_lang">عربي</string>
+</resources>
