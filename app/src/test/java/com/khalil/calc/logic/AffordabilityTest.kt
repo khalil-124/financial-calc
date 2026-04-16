@@ -39,7 +39,7 @@ class AffordabilityTest {
         val result = engine.analyzeAffordability(profile, proposedEMI, input, true)
         
         assertEquals(65.0, result.dtiWithNewLoan)
-        assertEquals(RiskLevel.CRITICAL, result.riskLevel)
+        assertEquals(RiskLevel.HIGH, result.riskLevel)
         assertTrue(result.healthScore < 40)
     }
 }

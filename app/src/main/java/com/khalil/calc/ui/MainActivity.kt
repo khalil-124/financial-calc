@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -277,7 +278,47 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                 }
                 
                 
-                SectionHeader(if(currentLang=="ar") "نوع الفائدة" else "Interest Rate Type")
+                var showRateInfoDialog by remember { mutableStateOf(false) }
+
+                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    SectionHeader(if(currentLang=="ar") "نوع الفائدة" else "Interest Rate Type")
+                    IconButton(onClick = { showRateInfoDialog = true }, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Info, contentDescription = "Info", tint = CalcColors.accent())
+                    }
+                }
+
+                if (showRateInfoDialog) {
+                    Dialog(onDismissRequest = { showRateInfoDialog = false }) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = CalcColors.surface(),
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Column(Modifier.padding(24.dp)) {
+                                Text(
+                                    text = stringResource(R.string.rate_type_info_title),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    color = CalcColors.textPrimary(),
+                                    modifier = Modifier.padding(bottom = 16.dp)
+                                )
+                                Text(stringResource(R.string.rate_type_reducing_desc), fontSize = 14.sp, color = CalcColors.textMuted(), modifier = Modifier.padding(bottom = 8.dp))
+                                Text(stringResource(R.string.rate_type_flat_desc), fontSize = 14.sp, color = CalcColors.textMuted(), modifier = Modifier.padding(bottom = 8.dp))
+                                Text(stringResource(R.string.rate_type_murabaha_desc), fontSize = 14.sp, color = CalcColors.textMuted(), modifier = Modifier.padding(bottom = 8.dp))
+                                Text(stringResource(R.string.rate_type_rule78_desc), fontSize = 14.sp, color = CalcColors.textMuted(), modifier = Modifier.padding(bottom = 16.dp))
+
+                                Button(
+                                    onClick = { showRateInfoDialog = false },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CalcColors.accent())
+                                ) {
+                                    Text(stringResource(R.string.close), color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val rateTypes = listOf(
                         RateType.REDUCING to (if(currentLang=="ar") "متناقصة" else "Reducing"), 

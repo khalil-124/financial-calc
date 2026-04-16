@@ -41,6 +41,12 @@
     <string name="help_down_payment">The amount you pay upfront from your own pocket.</string>
     <string name="help_interest_rate">The annual percentage rate charged by the bank.</string>
     <string name="help_loan_term">How many months you will take to repay the loan.</string>
+    <string name="rate_type_info_title">Interest Rate Types</string>
+    <string name="rate_type_reducing_desc">• Reducing Rate: Interest is calculated only on the remaining loan balance. As you pay, the interest portion decreases.</string>
+    <string name="rate_type_flat_desc">• Flat Rate: Interest is calculated on the full original loan amount throughout the term. The true cost (APR) is much higher than reducing rate.</string>
+    <string name="rate_type_murabaha_desc">• Murabaha: A pre-agreed fixed profit rate distributed evenly across installments.</string>
+    <string name="rate_type_rule78_desc">• Rule of 78: A method that front-loads most of the interest into the early months of the loan, making early settlement costly.</string>
+    <string name="close">Close</string>
     <string name="emi">Monthly Installment</string>
     <string name="pro_engine">Professional Amortization Engine</string>
     <string name="change_lang">عربي</string>

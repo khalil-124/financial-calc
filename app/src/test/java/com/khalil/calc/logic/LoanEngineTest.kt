@@ -20,8 +20,8 @@ class LoanEngineTest {
         )
         val result = engine.calculate(input)
         
-        // standard EMI for 10000 at 1% for 12 months is ~888.48
-        assertEquals(888.48, Math.round(result.monthlyEMI * 100.0) / 100.0)
+        // standard EMI for 10000 at 1% for 12 months is ~888.49
+        assertEquals(888.49, Math.round(result.monthlyEMI * 100.0) / 100.0)
         assertEquals(0, result.monthsSaved)
         assertTrue(result.totalInterest > 0)
         assertEquals(0.0, result.interestSaved)
