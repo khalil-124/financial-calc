@@ -16,4 +16,13 @@ interface LoanDao {
 
     @Delete
     suspend fun deleteLoan(loan: SavedLoan)
+
+    @Query("SELECT * FROM active_loans ORDER BY createdAt DESC")
+    fun getAllActiveLoans(): Flow<List<ActiveLoan>>
+
+    @Insert
+    suspend fun insertActiveLoan(loan: ActiveLoan)
+
+    @Delete
+    suspend fun deleteActiveLoan(loan: ActiveLoan)
 }

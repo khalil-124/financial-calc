@@ -31,7 +31,8 @@ class AffordabilityTest {
         val profile = PersonalFinanceProfile(
             monthlySalary = 1000.0,
             otherIncome = 0.0,
-            existingLoansEMI = 450.0 // Already at 45%
+            existingLoansEMI = 450.0, // Already at 45%
+            rentExpense = 200.0 // Add expense to reduce disposable income
         )
         val input = LoanInput(annualRate = 10.0, months = 12)
         val proposedEMI = 200.0 // Total DTI 65%

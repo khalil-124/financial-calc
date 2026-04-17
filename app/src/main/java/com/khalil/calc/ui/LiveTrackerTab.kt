@@ -1,0 +1,174 @@
+package com.khalil.calc.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.khalil.calc.logic.ActiveLoan
+import com.khalil.calc.logic.LoanDao
+import com.khalil.calc.logic.LoanEngine
+import com.khalil.calc.logic.RateType
+import kotlinx.coroutines.launch
+import java.text.DecimalFormat
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+@Composable
+fun LiveTrackerTab(dao: LoanDao, currentLang: String) {
+    val coroutineScope = rememberCoroutineScope()
+    val loansList by dao.getAllActiveLoans().collectAsState(initial = emptyList())
+    var showAddDialog by remember { mutableStateOf(false) }
+    
+    val engine = remember { LoanEngine() }
+    val isArabic = currentLang == "ar"
+    val formatter = DecimalFormat("#,##0.00")
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Text(if (isArabic) "القروض الحية والمتابعة" else "Live Loan Tracker", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = CalcColors.textPrimary())
+                Text(if (isArabic) "داشبورد متابعة الإنجاز وتقليم الديون" else "Debt progression dashboard", fontSize = 12.sp, color = CalcColors.accent())
+            }
+            FloatingActionButton(onClick = { showAddDialog = true }, containerColor = CalcColors.accent(), contentColor = Color.White) {
+                Icon(Icons.Default.Add, contentDescription = "Add Live Loan")
+            }
+        }
+
+        if (loansList.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(if (isArabic) "لم تقم بإضافة قروض للمتابعة الحية." else "No live loans added yet.", color = CalcColors.textMuted())
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                items(loansList) { activeLoan ->
+                    val liveResult = engine.calculateLiveAmortization(activeLoan, isArabic)
+                    
+                    PremiumCard(gradient = false) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(activeLoan.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CalcColors.textPrimary())
+                            IconButton(onClick = { coroutineScope.launch { dao.deleteActiveLoan(activeLoan) } }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red.copy(alpha = 0.5f))
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Column {
+                                Text(if (isArabic) "الرصيد الفعلي الحالي" else "Current Act. Balance", fontSize = 12.sp, color = CalcColors.textMuted())
+                                Text("JOD ${formatter.format(liveResult.remainingBalance)}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(if (isArabic) "الأقساط المتبقية" else "Remaining EMIs", fontSize = 12.sp, color = CalcColors.textMuted())
+                                Text("${liveResult.remainingMonths} ${if (isArabic) "شهر" else "Mo"}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE53935))
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+                        
+                        // Progress Bar
+                        Text(if (isArabic) "نسبة الإنجاز الخارقة" else "Crusher Progress", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CalcColors.accent())
+                        LinearProgressIndicator(
+                            progress = (liveResult.progressPercentage / 100.0).toFloat().coerceIn(0f, 1f),
+                            modifier = Modifier.fillMaxWidth().height(12.dp).padding(vertical = 4.dp),
+                            color = Color(0xFF4CAF50),
+                            trackColor = Color.LightGray.copy(alpha = 0.3f),
+                        )
+                        Text("${String.format("%.1f", liveResult.progressPercentage)}% ${if(isArabic) "انتهى من الرحلة!" else "Completed!"}", fontSize = 10.sp, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.End))
+
+                        Spacer(Modifier.height(16.dp))
+                        
+                        // Live Insight Notification
+                        liveResult.proactiveInsight?.let { insight ->
+                            Surface(
+                                color = CalcColors.accent().copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CalcColors.accent().copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = CalcColors.accent(), modifier = Modifier.size(24.dp))
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(insight.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CalcColors.textPrimary())
+                                        Text(insight.description, fontSize = 12.sp, color = CalcColors.textMuted())
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAddDialog) {
+        AddLiveLoanDialog(
+            isArabic = isArabic,
+            onDismiss = { showAddDialog = false },
+            onSave = { newLoan ->
+                coroutineScope.launch { dao.insertActiveLoan(newLoan) }
+                showAddDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun AddLiveLoanDialog(isArabic: Boolean, onDismiss: () -> Unit, onSave: (ActiveLoan) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var currentBalance by remember { mutableStateOf("") }
+    var originalMonths by remember { mutableStateOf("") }
+    var currentRate by remember { mutableStateOf("") }
+    var startDateText by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if(isArabic) "إضافة قرض حي للتتبع" else "Add Live Loan") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(if(isArabic) "اسمح القرض (مثال: شقة)" else "Loan Name") }, singleLine = true)
+                OutlinedTextField(value = currentBalance, onValueChange = { currentBalance = it }, label = { Text(if(isArabic) "رصيدك الفعلي اليوم بالبنك" else "Exact Current Balance") }, singleLine = true)
+                OutlinedTextField(value = originalMonths, onValueChange = { originalMonths = it }, label = { Text(if(isArabic) "المدة الأصلية بالشهور" else "Original Term (Months)") }, singleLine = true)
+                OutlinedTextField(value = currentRate, onValueChange = { currentRate = it }, label = { Text(if(isArabic) "النسبة السنوية الحالية %" else "Current Annual Rate %") }, singleLine = true)
+                OutlinedTextField(value = startDateText, onValueChange = { startDateText = it }, label = { Text(if(isArabic) "تاريخ بداية القرض (yyyy-MM-dd)" else "Start Date (yyyy-MM-dd)") }, singleLine = true)
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                try {
+                    val activeLoan = ActiveLoan(
+                        name = name.takeIf { it.isNotBlank() } ?: "Live Loan",
+                        OriginalAssetPrice = currentBalance.toDoubleOrNull() ?: 0.0, // using current balance as a proxy for asset
+                        OriginalDownPayment = 0.0,
+                        OriginalMonths = originalMonths.toIntOrNull() ?: 12,
+                        OriginalAnnualRate = currentRate.toDoubleOrNull() ?: 5.0,
+                        rateType = RateType.REDUCING,
+                        startDateMillis = LocalDate.parse(startDateText).toEpochDay() * (1000 * 60 * 60 * 24),
+                        paymentDay = 1,
+                        currentBalanceOverride = currentBalance.toDoubleOrNull() ?: 0.0,
+                        currentActiveRate = currentRate.toDoubleOrNull() ?: 5.0
+                    )
+                    onSave(activeLoan)
+                } catch(e: Exception) {
+                    // Invalid date parsing or anything
+                }
+            }) { Text(if(isArabic) "ابدأ التتبع" else "Start Tracking") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(if(isArabic) "إلغاء" else "Cancel") }
+        }
+    )
+}

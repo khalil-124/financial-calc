@@ -85,6 +85,9 @@ object PdfGenerator {
                     <div class="summary-item"><span class="summary-label">$strTotal</span><span class="summary-val">JOD ${f.format(result.totalPayment)}</span></div>
                     <div class="summary-item"><span class="summary-label">$strAPR</span><span class="summary-val">${String.format("%.2f", result.trueAPR)}%</span></div>
                     <div class="summary-item"><span class="summary-label">${if(isArabic) "إجمالي التأمين/الرسوم:" else "Total Ins/Fees:"}</span><span class="summary-val" style="color:#795548">JOD ${f.format(result.totalInsurance)}</span></div>
+                    <div class="summary-item"><span class="summary-label">${if(isArabic) "نوع الفائدة:" else "Rate Type:"}</span><span class="summary-val">${input.rateType.name}</span></div>
+                    <div class="summary-item"><span class="summary-label">${if(isArabic) "مدة القرض:" else "Loan Term:"}</span><span class="summary-val">${input.months} ${if(isArabic) "أشهر" else "Mo"}</span></div>
+                    <div class="summary-item"><span class="summary-label">${if(isArabic) "فترة السماح:" else "Grace Period:"}</span><span class="summary-val">${input.graceMonths} ${if(isArabic) "أشهر" else "Mo"}</span></div>
                 </div>
                 <table>
                     <thead>
@@ -95,6 +98,7 @@ object PdfGenerator {
                             <th>${if(isArabic) "أصل القرض" else "Principal"}</th>
                             <th>${if(isArabic) "الفائدة" else "Interest"}</th>
                             <th>${if(isArabic) "تأمين/رسوم" else "Ins/Fees"}</th>
+                            <th>${if(isArabic) "غرامة السداد" else "Penalty"}</th>
                             <th>${if(isArabic) "دفعات ذكية" else "Smart Payments"}</th>
                             <th>${if(isArabic) "الرصيد المتبقي" else "Remaining Bal."}</th>
                         </tr>
@@ -111,8 +115,8 @@ object PdfGenerator {
                 val principal = months.sumOf { it.principalPart }
                 val interest = months.sumOf { it.interestPart }
                 val smart = months.sumOf { it.extraPaid + it.balloonPaid }
-
                 val fees = months.sumOf { it.insurancePart + it.recurringFeesPart }
+                val penalty = months.sumOf { it.earlySettlementFeePaid }
                 html.append("""
                     <tr>
                         <td><strong>$year</strong></td>
@@ -121,6 +125,7 @@ object PdfGenerator {
                         <td class="num" style="color: #2E7D32;">${f.format(principal)}</td>
                         <td class="num" style="color: #E53935;">${f.format(interest)}</td>
                         <td class="num" style="color: #795548;">${f.format(fees)}</td>
+                        <td class="num" style="color: #B71C1C;">${f.format(penalty)}</td>
                         <td class="num" style="color: #2196F3;">${f.format(smart)}</td>
                         <td class="num"><strong>${f.format(closing)}</strong></td>
                     </tr>
@@ -130,6 +135,7 @@ object PdfGenerator {
             result.schedule.forEach { m ->
                 val smart = m.extraPaid + m.balloonPaid
                 val fees = m.insurancePart + m.recurringFeesPart
+                val penalty = m.earlySettlementFeePaid
                 html.append("""
                     <tr>
                         <td>${m.monthNumber}</td>
@@ -138,6 +144,7 @@ object PdfGenerator {
                         <td class="num" style="color: #2E7D32;">${f.format(m.principalPart)}</td>
                         <td class="num" style="color: #E53935;">${f.format(m.interestPart)}</td>
                         <td class="num" style="color: #795548;">${f.format(fees)}</td>
+                        <td class="num" style="color: #B71C1C;">${f.format(penalty)}</td>
                         <td class="num" style="color: #2196F3;">${f.format(smart)}</td>
                         <td class="num"><strong>${f.format(m.remainingBalance)}</strong></td>
                     </tr>

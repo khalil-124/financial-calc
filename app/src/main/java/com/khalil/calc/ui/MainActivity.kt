@@ -7,6 +7,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,6 +15,8 @@ import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material3.*
 import androidx.compose.animation.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -146,13 +149,13 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
     val formatter = remember { DecimalFormat("#,##0.00") }
     
     // Live Rate State
-    var fedRate by remember { mutableStateOf<LiveRatesEngine.FedRate?>(null) }
+    var fedRate by remember { mutableStateOf<LiveRatesEngine.LiveRate?>(null) }
     var fetchingRate by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
     
     LaunchedEffect(Unit) {
         fetchingRate = true
-        fedRate = LiveRatesEngine.fetchLatestSOFR()
+        fedRate = LiveRatesEngine.fetchFedRate()
         fetchingRate = false
     }
 
@@ -161,8 +164,8 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
         item {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                 Column {
-                    Text("SMART LOAN CALC", fontSize = 22.sp, fontWeight = FontWeight.Black, color = CalcColors.textPrimary())
-                    Text("DYNAMIC REPAYMENT ENGINE", fontSize = 10.sp, color = CalcColors.accent(), letterSpacing = 1.sp)
+                    Text(if(currentLang=="ar") "حاسبة القروض الذكية" else "SMART LOAN CALC", fontSize = 22.sp, fontWeight = FontWeight.Black, color = CalcColors.textPrimary())
+                    Text(if(currentLang=="ar") "محرك السداد الديناميكي" else "DYNAMIC REPAYMENT ENGINE", fontSize = 10.sp, color = CalcColors.accent(), letterSpacing = 1.sp)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onThemeToggle) { Text(if(isDark) "☀️" else "🌙", fontSize = 20.sp) }
@@ -469,7 +472,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                     TextField(
                         value = if(input.mandatoryCardFee == 0.0) "" else input.mandatoryCardFee.toString(),
                         onValueChange = { onInputChanged(input.copy(mandatoryCardFee = it.toDoubleOrNull() ?: 0.0)) },
-                        label = { Text(if(currentLang=="ar") "رسوم البطاقة الإجبارية (سنوية)" else "Annual Card Fee", fontSize = 11.sp) },
+                        label = { Text(if(currentLang=="ar") "رسوم البطاقة الإجبارية (سنوية)" else "Annual Mandatory Card Fee", fontSize = 11.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -485,17 +488,39 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                     input.extraPaymentPeriods.forEachIndexed { index, period ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("${if(currentLang=="ar") "شهر" else "Mo"} ${period.startMonth}-${period.endMonth}: +${period.amountPerMonth} JOD", Modifier.weight(1f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            IconButton(onClick = {
-                                pStart = period.startMonth.toString()
-                                pEnd = period.endMonth.toString()
-                                pAmt = period.amountPerMonth.toString()
-                                val newList = input.extraPaymentPeriods.toMutableList().apply { removeAt(index) }
-                                onInputChanged(input.copy(extraPaymentPeriods = newList))
-                            }) { Icon(Icons.Default.Edit, null, tint = CalcColors.accent(), modifier = Modifier.size(20.dp)) }
-                            IconButton(onClick = { 
-                                val newList = input.extraPaymentPeriods.toMutableList().apply { removeAt(index) }
-                                onInputChanged(input.copy(extraPaymentPeriods = newList))
-                            }) { Icon(Icons.Default.Delete, null, tint = Color.Red.copy(0.6f), modifier = Modifier.size(20.dp)) }
+                                    // زر تبديل الإستراتيجية لكل فترة
+                                    Surface(
+                                        modifier = Modifier.clickable {
+                                            val newStrat = if (period.strategy == ExtraPaymentStrategy.REDUCE_TERM) ExtraPaymentStrategy.REDUCE_EMI else ExtraPaymentStrategy.REDUCE_TERM
+                                            val newList = input.extraPaymentPeriods.toMutableList()
+                                            newList[index] = period.copy(strategy = newStrat)
+                                            onInputChanged(input.copy(extraPaymentPeriods = newList))
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (period.strategy == ExtraPaymentStrategy.REDUCE_TERM) Color(0xFF2E7D32).copy(alpha = 0.15f) else Color(0xFF1565C0).copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            if (period.strategy == ExtraPaymentStrategy.REDUCE_TERM)
+                                                (if(currentLang=="ar") "↓ مدة" else "↓ Term")
+                                            else
+                                                (if(currentLang=="ar") "↓ قسط" else "↓ EMI"),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (period.strategy == ExtraPaymentStrategy.REDUCE_TERM) Color(0xFF2E7D32) else Color(0xFF1565C0)
+                                        )
+                                    }
+                                    IconButton(onClick = {
+                                        pStart = period.startMonth.toString()
+                                        pEnd = period.endMonth.toString()
+                                        pAmt = period.amountPerMonth.toString()
+                                        val newList = input.extraPaymentPeriods.toMutableList().apply { removeAt(index) }
+                                        onInputChanged(input.copy(extraPaymentPeriods = newList))
+                                    }) { Icon(Icons.Default.Edit, null, tint = CalcColors.accent(), modifier = Modifier.size(20.dp)) }
+                                    IconButton(onClick = { 
+                                        val newList = input.extraPaymentPeriods.toMutableList().apply { removeAt(index) }
+                                        onInputChanged(input.copy(extraPaymentPeriods = newList))
+                                    }) { Icon(Icons.Default.Delete, null, tint = Color.Red.copy(0.6f), modifier = Modifier.size(20.dp)) }
                         }
                     }
                     
@@ -733,8 +758,20 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                     }
                     Row(Modifier.fillMaxWidth().padding(top = 2.dp), Arrangement.SpaceBetween) {
                         Text("0%", fontSize = 8.sp, color = CalcColors.textMuted())
-                        Text(if(currentLang=="ar") "حد البنك المركزي 50%" else "CB Limit 50%", fontSize = 8.sp, color = Color.Red.copy(0.7f))
+                        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                        Text(
+                            text = if(currentLang=="ar") "مراجعة تعليمات البنك المركزي (انقر هنا)" else "Review Central Bank Regs (Click Here)", 
+                            fontSize = 9.sp, 
+                            color = CalcColors.accent(),
+                            modifier = Modifier.clickable { uriHandler.openUri("https://www.cbj.gov.jo") },
+                            fontWeight = FontWeight.Bold
+                        )
                         Text("100%", fontSize = 8.sp, color = CalcColors.textMuted())
+                    }
+                    if(currentLang=="ar") {
+                        Text("ملاحظة: تختلف تعليمات تحديد سقف العبء حسب نوع القرض وجهة التمويل.", fontSize = 8.sp, color = CalcColors.textMuted().copy(0.7f))
+                    } else {
+                        Text("Note: DTI limits vary by loan type and financial institution.", fontSize = 8.sp, color = CalcColors.textMuted().copy(0.7f))
                     }
                     Spacer(Modifier.height(12.dp))
                     Divider(color = CalcColors.border().copy(alpha = 0.15f))
@@ -902,7 +939,9 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                                         downPayment = input.downPayment,
                                         months = input.months,
                                         annualRate = input.annualRate,
-                                        rateType = input.rateType
+                                        rateType = input.rateType,
+                                        extraMonthly = input.extraMonthly,
+                                        extraMonthlyStrategy = input.extraMonthlyStrategy
                                     ))
                                 }
                                 showSaveDialog = false
@@ -1719,8 +1758,8 @@ fun MyLoansTab(dao: LoanDao, currentLang: String, onLoad: (SavedLoan) -> Unit) {
         val loan2 = loansList[1]
         
         val engine = LoanEngine()
-        val res1 = engine.calculate(LoanInput(loan1.assetPrice, loan1.downPayment, loan1.months, loan1.annualRate, loan1.rateType), currentLang=="ar")
-        val res2 = engine.calculate(LoanInput(loan2.assetPrice, loan2.downPayment, loan2.months, loan2.annualRate, loan2.rateType), currentLang=="ar")
+        val res1 = engine.calculate(LoanInput(loan1.assetPrice, loan1.downPayment, loan1.months, loan1.annualRate, loan1.rateType, extraMonthly = loan1.extraMonthly, extraMonthlyStrategy = loan1.extraMonthlyStrategy), currentLang=="ar")
+        val res2 = engine.calculate(LoanInput(loan2.assetPrice, loan2.downPayment, loan2.months, loan2.annualRate, loan2.rateType, extraMonthly = loan2.extraMonthly, extraMonthlyStrategy = loan2.extraMonthlyStrategy), currentLang=="ar")
         
         val formatter = DecimalFormat("#,##0.00")
         
@@ -1790,7 +1829,7 @@ fun MyLoansTab(dao: LoanDao, currentLang: String, onLoad: (SavedLoan) -> Unit) {
                     if (parsedNewRate > 0) {
                         val engine = LoanEngine()
                         // افتراضياً البنك القديم:
-                        val oldRes = engine.calculate(LoanInput(refinanceTarget!!.assetPrice, refinanceTarget!!.downPayment, refinanceTarget!!.months, refinanceTarget!!.annualRate, refinanceTarget!!.rateType), currentLang=="ar")
+                        val oldRes = engine.calculate(LoanInput(refinanceTarget!!.assetPrice, refinanceTarget!!.downPayment, refinanceTarget!!.months, refinanceTarget!!.annualRate, refinanceTarget!!.rateType, extraMonthly = refinanceTarget!!.extraMonthly, extraMonthlyStrategy = refinanceTarget!!.extraMonthlyStrategy), currentLang=="ar")
                         // بما أن القرض في البداية نعتبر أنه لم يسدد منه شيء كمحاكاة:
                         val refInput = RefinanceInput(
                             currentBalance = refinanceTarget!!.assetPrice - refinanceTarget!!.downPayment,
@@ -2055,7 +2094,7 @@ fun CompareTab(dao: LoanDao, currentLang: String) {
                     currentLang = currentLang,
                     onSelect = { 
                         name1 = it.name
-                        input1 = LoanInput(it.assetPrice, it.downPayment, it.months, it.annualRate, it.rateType)
+                        input1 = LoanInput(it.assetPrice, it.downPayment, it.months, it.annualRate, it.rateType, extraMonthly = it.extraMonthly, extraMonthlyStrategy = it.extraMonthlyStrategy)
                     },
                     onInputChanged = { input1 = it }
                 )
@@ -2069,7 +2108,7 @@ fun CompareTab(dao: LoanDao, currentLang: String) {
                     currentLang = currentLang,
                     onSelect = { 
                         name2 = it.name
-                        input2 = LoanInput(it.assetPrice, it.downPayment, it.months, it.annualRate, it.rateType)
+                        input2 = LoanInput(it.assetPrice, it.downPayment, it.months, it.annualRate, it.rateType, extraMonthly = it.extraMonthly, extraMonthlyStrategy = it.extraMonthlyStrategy)
                     },
                     onInputChanged = { input2 = it }
                 )

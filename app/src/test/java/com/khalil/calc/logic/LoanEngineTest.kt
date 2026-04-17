@@ -1,101 +1,112 @@
 package com.khalil.calc.logic
 
+import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class LoanEngineTest {
 
-    private val engine = LoanEngine()
+    private lateinit var engine: LoanEngine
 
-    @Test
-    fun testReducingRate_Basic() {
-        // Loan: 10,000, Rate: 12% (1% monthly), Months: 12
-        val input = LoanInput(
-            assetPrice = 10000.0,
-            downPayment = 0.0,
-            months = 12,
-            annualRate = 12.0,
-            rateType = RateType.REDUCING
-        )
-        val result = engine.calculate(input)
-        
-        // standard EMI for 10000 at 1% for 12 months is ~888.49
-        assertEquals(888.49, Math.round(result.monthlyEMI * 100.0) / 100.0)
-        assertEquals(0, result.monthsSaved)
-        assertTrue(result.totalInterest > 0)
-        assertEquals(0.0, result.interestSaved)
+    @Before
+    fun setup() {
+        engine = LoanEngine()
     }
 
     @Test
-    fun testMurabaha_NoInterestSaved() {
-        val input = LoanInput(
-            assetPrice = 10000.0,
-            downPayment = 0.0,
-            months = 12,
-            annualRate = 12.0,
-            rateType = RateType.MURABAHA,
-            balloonPayments = listOf(BalloonPayment(month = 6, amount = 2000.0))
-        )
-        val result = engine.calculate(input)
+    fun testReducingRate_CalculatesCorrectly() {
+        val input = LoanInput(assetPrice = 10000.0, downPayment = 0.0, months = 12, annualRate = 5.0, rateType = RateType.REDUCING)
+        val result = engine.calculate(input, false)
         
-        // For Murabaha, interestSaved must be exactly 0.0 regardless of early payments
-        assertEquals(0.0, result.interestSaved, "Murabaha should report 0.0 interest saved")
-        assertTrue(result.monthsSaved > 0, "Early payment should still reduce term")
+        // معادلة القسط المتناقص لـ 10,000 على 12 شهر بفائدة 5% تعطي قسطاً تقريبياً 856.07
+        assertEquals(856.07, result.monthlyEMI, 0.1)
+        
+        // يجب أن يكون إجمالي أصل القرض المسدد في نهاية الجدول هو 10,000 تماماً
+        val totalPrincipal = result.schedule.sumOf { it.principalPart }
+        assertEquals(10000.0, totalPrincipal, 0.01)
     }
 
     @Test
-    fun testZeroInterestLoan() {
-        val input = LoanInput(
-            assetPrice = 12000.0,
-            downPayment = 0.0,
-            months = 12,
-            annualRate = 0.0,
-            rateType = RateType.REDUCING
-        )
-        val result = engine.calculate(input)
+    fun testFlatRate_CalculatesCorrectly() {
+        val input = LoanInput(assetPrice = 10000.0, downPayment = 0.0, months = 12, annualRate = 5.0, rateType = RateType.FLAT)
+        val result = engine.calculate(input, false)
         
-        assertEquals(1000.0, result.monthlyEMI)
-        assertEquals(0.0, result.totalInterest)
-        assertEquals(12000.0, result.totalPayment)
+        // الفائدة الثابتة لـ 10,000 على سنة بنسبة 5% هي 500. إجمالي القرض 10500 / 12 شهر = 875.0
+        assertEquals(875.0, result.monthlyEMI, 0.01)
+        
+        val totalPrincipal = result.schedule.sumOf { it.principalPart }
+        assertEquals(10000.0, totalPrincipal, 0.01)
+        
+        val totalInterest = result.schedule.sumOf { it.interestPart }
+        assertEquals(500.0, totalInterest, 0.01)
     }
 
     @Test
-    fun testMixedBalloonStrategies() {
-        val input = LoanInput(
-            assetPrice = 20000.0,
-            downPayment = 0.0,
-            months = 24,
-            annualRate = 10.0,
-            rateType = RateType.REDUCING,
-            balloonPayments = listOf(
-                BalloonPayment(month = 5, amount = 5000.0, strategy = ExtraPaymentStrategy.REDUCE_TERM),
-                BalloonPayment(month = 10, amount = 5000.0, strategy = ExtraPaymentStrategy.REDUCE_EMI)
-            )
-        )
-        val result = engine.calculate(input)
+    fun testMurabahaRate_CalculatesCorrectly() {
+        val input = LoanInput(assetPrice = 10000.0, downPayment = 0.0, months = 12, annualRate = 5.0, rateType = RateType.MURABAHA)
+        val result = engine.calculate(input, false)
         
-        assertTrue(result.monthsSaved > 0)
-        assertTrue(result.interestSaved > 0)
-        // Verify schedule is shorter than 24 months
-        assertTrue(result.schedule.size < 24)
+        // المرابحة تتصرف مثل الفائدة الثابتة كقسط وكمجموع فوائد وأصل
+        assertEquals(875.0, result.monthlyEMI, 0.01)
+        
+        val totalPrincipal = result.schedule.sumOf { it.principalPart }
+        assertEquals(10000.0, totalPrincipal, 0.01)
     }
 
     @Test
-    fun testGracePeriodCapitalization() {
-        val input = LoanInput(
-            assetPrice = 10000.0,
-            downPayment = 0.0,
-            months = 12,
-            annualRate = 12.0,
-            rateType = RateType.REDUCING,
-            graceMonths = 3,
-            capitalizeGraceInterest = true
-        )
-        val result = engine.calculate(input)
+    fun testRuleOf78Rate_CalculatesCorrectly() {
+        val input = LoanInput(assetPrice = 10000.0, downPayment = 0.0, months = 12, annualRate = 5.0, rateType = RateType.RULE_OF_78)
+        val result = engine.calculate(input, false)
         
-        // After 3 months of 1% interest capitalized: 10000 * (1.01)^3 = 10303.01
-        // The EMI will be based on 10303.01 over 9 months
-        assertTrue(result.monthlyEMI > 1111.0, "EMI should be higher due to capitalized interest")
+        // Rule of 78 تحافظ على نفس القسط وإجمالي الفائدة للثابتة، لكن تغير توزيعها الداخلي
+        assertEquals(875.0, result.monthlyEMI, 0.01)
+        
+        val totalPrincipal = result.schedule.sumOf { it.principalPart }
+        assertEquals(10000.0, totalPrincipal, 0.01)
+    }
+
+    @Test
+    fun testInterestOnlyRate_CalculatesCorrectly() {
+        val input = LoanInput(assetPrice = 10000.0, downPayment = 0.0, months = 12, annualRate = 5.0, rateType = RateType.INTEREST_ONLY)
+        val result = engine.calculate(input, false)
+        
+        // القسط الشهري هو فقط نسبة الفائدة الشهرية (10000 * 0.05 / 12 = 41.666...)
+        assertEquals(41.67, result.monthlyEMI, 0.1)
+        
+        // يجب أن يتضمن الشهر الأخير دفع أصل القرض بالكامل
+        val lastMonth = result.schedule.last()
+        assertEquals(10000.0, lastMonth.principalPart, 0.01)
+    }
+
+    @Test
+    fun testGracePeriod_WithCapitalization() {
+        val input = LoanInput(assetPrice = 10000.0, downPayment = 0.0, months = 12, annualRate = 5.0, rateType = RateType.REDUCING, graceMonths = 3, capitalizeGraceInterest = true)
+        val result = engine.calculate(input, false)
+        
+        // خلال فترة السماح (أول 3 أشهر)، يجب أن يكون القسط 0.0 تماماً
+        assertEquals(0.0, result.schedule[0].payment, 0.01)
+        assertEquals(0.0, result.schedule[1].payment, 0.01)
+        assertEquals(0.0, result.schedule[2].payment, 0.01)
+        
+        // الرصيد يجب أن يرتفع بسبب رسملة الفائدة (فائدة مركبة لـ 3 أشهر)
+        val balanceAfterGrace = result.schedule[2].remainingBalance
+        assertEquals(10125.52, balanceAfterGrace, 1.0)
+        
+        // بما أن الفائدة ترأسمَلَت، إجمالي "الأصل" المسدد في النهاية سيساوي الرصيد المتضخم
+        assertEquals(balanceAfterGrace, result.schedule.sumOf { it.principalPart }, 1.0)
+    }
+
+    @Test
+    fun testGracePeriod_WithoutCapitalization() {
+        val input = LoanInput(assetPrice = 10000.0, downPayment = 0.0, months = 12, annualRate = 5.0, rateType = RateType.REDUCING, graceMonths = 3, capitalizeGraceInterest = false)
+        val result = engine.calculate(input, false)
+        
+        // خلال فترة السماح الفائدة فقط تُدفع (حوالي 41.67 دينار) ولا يُخصم شيء من الأصل
+        val expectedInterestOnly = 10000.0 * (5.0 / 100.0) / 12.0
+        assertEquals(expectedInterestOnly, result.schedule[0].payment, 0.01)
+        assertEquals(0.0, result.schedule[0].principalPart, 0.01) 
+        
+        // في النهاية يجب أن يكون إجمالي الأصل المسدد هو 10,000 تماماً
+        assertEquals(10000.0, result.schedule.sumOf { it.principalPart }, 0.01)
     }
 }

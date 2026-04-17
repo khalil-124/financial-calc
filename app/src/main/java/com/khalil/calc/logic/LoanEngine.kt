@@ -1,5 +1,7 @@
 package com.khalil.calc.logic
 
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import kotlin.math.pow
 
 /**
@@ -15,7 +17,7 @@ import kotlin.math.pow
  *    - REDUCE_TERM: تقليل مدة القرض مع الحفاظ على نفس القسط
  *    - REDUCE_EMI:  تخفيض القسط مع الحفاظ على نفس المدة
  *
- * 3. الدفعات الإضافية الدورية تتبع الإستراتيجية العامة (extraPaymentStrategy).
+ * 3. الدفعات الإضافية والبالونات تتبع استراتيجيات مستقلة (Per-payment strategy).
  *
  * 4. رسوم السداد المبكر تُحسب على كل الدفعات الإضافية والبالونات.
  *
@@ -60,7 +62,7 @@ class LoanEngine {
             if (r > 0) {
                 when (input.rateType) {
                     RateType.REDUCING -> {
-                        val balanceAfterGrace = initialPrincipal * (1 + r).pow(input.graceMonths)
+                        val balanceAfterGrace = if (input.capitalizeGraceInterest) initialPrincipal * (1 + r).pow(input.graceMonths) else initialPrincipal
                         val powN = (1 + r).pow(n)
                         standardEMI = (balanceAfterGrace * r * powN) / (powN - 1)
                     }
@@ -69,7 +71,7 @@ class LoanEngine {
                         standardEMI = (initialPrincipal + totalInterest) / n.toInt()
                     }
                     RateType.INTEREST_ONLY -> {
-                        val balanceAfterGrace = initialPrincipal * (1 + r).pow(input.graceMonths)
+                        val balanceAfterGrace = if (input.capitalizeGraceInterest) initialPrincipal * (1 + r).pow(input.graceMonths) else initialPrincipal
                         standardEMI = balanceAfterGrace * r
                     }
                 }
@@ -80,14 +82,8 @@ class LoanEngine {
 
         val initialStandardEMI = standardEMI
 
-        var flatEffectiveRate = r
-        if (input.rateType == RateType.FLAT && initialPrincipal > 0) {
-            val flows = DoubleArray(n.toInt() + 1)
-            flows[0] = initialPrincipal
-            for (i in 1..n.toInt()) flows[i] = -standardEMI
-            flatEffectiveRate = calculateIRR(flows).coerceAtLeast(0.0)
-        }
-        val activeRate = if (input.rateType == RateType.FLAT) flatEffectiveRate else r
+        val activeRate = r
+        val isFlatRate = input.rateType == RateType.FLAT
 
         // ══════════════════════════════════════════════════════════════
         // 【الخطوة 2】تجهيز هياكل البيانات
@@ -148,7 +144,15 @@ class LoanEngine {
                 }
             }
 
-            val baseEMI = if (m <= input.graceMonths) 0.0 else standardEMI
+            val baseEMI = if (m <= input.graceMonths) {
+                if (input.capitalizeGraceInterest) 0.0 else {
+                    if (isMurabaha || isRuleOf78 || isFlatRate) {
+                        (initialPrincipal * (input.annualRate / 100.0) / 12.0).coerceAtLeast(0.0)
+                    } else {
+                        (currentBalance * activeRate).coerceAtLeast(0.0)
+                    }
+                }
+            } else standardEMI
 
             val actualEMI: Double
             val emiInterest: Double
@@ -162,7 +166,12 @@ class LoanEngine {
             var totalInterestPaidThisMonth = 0.0
 
             if (isRuleOf78) {
-                val interestThisMonth = totalFixedInterest * (n - m + 1) / sumOfDigits
+                val activeMonth = m - input.graceMonths
+                val interestThisMonth = if (activeMonth > 0) {
+                    totalFixedInterest * (n - activeMonth + 1) / sumOfDigits
+                } else {
+                    (initialPrincipal * (input.annualRate / 100.0) / 12.0).coerceAtLeast(0.0)
+                }
                 actualEMI = minOf(baseEMI, currentBalance + interestThisMonth)
                 emiInterest = minOf(actualEMI, interestThisMonth)
                 emiPrincipal = (actualEMI - emiInterest).coerceAtLeast(0.0)
@@ -178,7 +187,7 @@ class LoanEngine {
                 totalPayment = totalInterestPaidThisMonth + totalPrincipalReduction + feePaidThisMonth + monthlyRecurringCost
                 
                 currentBalance = (currentBalance + unpaidInterest - totalPrincipalReduction).coerceAtLeast(0.0)
-            } else if (isMurabaha) {
+            } else if (isMurabaha || isFlatRate) {
                 val currentUnifiedDebt = if (ratioP > 0) currentBalance / ratioP else 0.0
                 
                 actualEMI = minOf(baseEMI, currentUnifiedDebt)
@@ -214,7 +223,14 @@ class LoanEngine {
                 
                 val balanceAfterEMI = (currentBalance - emiPrincipal).coerceAtLeast(0.0)
                 actualExtra = minOf(extraPaidNow, balanceAfterEMI)
-                actualBalloon = minOf(balloonToday, (balanceAfterEMI - actualExtra).coerceAtLeast(0.0))
+
+                var actualBalloonTemp = balloonToday
+                // Interest Only requires full principal balloon payment at the very end
+                if (input.rateType == RateType.INTEREST_ONLY && m == input.months) {
+                    actualBalloonTemp += balanceAfterEMI // Enforce final payoff
+                }
+                
+                actualBalloon = minOf(actualBalloonTemp, (balanceAfterEMI - actualExtra).coerceAtLeast(0.0))
                 
                 totalPrincipalReduction = emiPrincipal + actualExtra + actualBalloon
                 totalInterestPaidThisMonth = emiInterest
@@ -253,13 +269,23 @@ class LoanEngine {
 
             if (currentBalance > BALANCE_THRESHOLD) {
                 var needsEMIRecalc = false
-                var strategy = input.extraPaymentStrategy
-
-                if (balloonToday > 0) {
-                    strategy = balloonStrategy
-                    if (strategy == ExtraPaymentStrategy.REDUCE_EMI) needsEMIRecalc = true
-                } else if (extraPaidNow > 0 && strategy == ExtraPaymentStrategy.REDUCE_EMI) {
+                
+                // Determine if ANY payment this month triggers EMI reduction
+                if (balloonToday > 0 && balloonStrategy == ExtraPaymentStrategy.REDUCE_EMI) {
                     needsEMIRecalc = true
+                }
+                if (input.extraMonthly > 0 && input.extraMonthlyStrategy == ExtraPaymentStrategy.REDUCE_EMI) {
+                    needsEMIRecalc = true
+                }
+                input.extraPaymentPeriods.forEach { p ->
+                    if (m in p.startMonth..p.endMonth && p.strategy == ExtraPaymentStrategy.REDUCE_EMI) {
+                        needsEMIRecalc = true
+                    }
+                }
+                input.manualExtraPayments.forEach { me ->
+                    if (me.month == m && me.strategy == ExtraPaymentStrategy.REDUCE_EMI) {
+                        needsEMIRecalc = true
+                    }
                 }
 
                 if (needsEMIRecalc) {
@@ -270,13 +296,9 @@ class LoanEngine {
                                 val pw = (1 + r).pow(remainingMonths.toDouble())
                                 standardEMI = (currentBalance * r * pw) / (pw - 1)
                             }
-                            input.rateType == RateType.MURABAHA -> {
+                            input.rateType == RateType.FLAT || input.rateType == RateType.MURABAHA -> {
                                 val currUnifiedDebt = if (ratioP > 0) currentBalance / ratioP else 0.0
                                 standardEMI = currUnifiedDebt / remainingMonths.toDouble()
-                            }
-                            input.rateType == RateType.FLAT -> {
-                                val pw = (1 + activeRate).pow(remainingMonths.toDouble())
-                                standardEMI = (currentBalance * activeRate * pw) / (pw - 1)
                             }
                             input.rateType == RateType.RULE_OF_78 -> {
                                 val remainingInterest = totalFixedInterest - schedule.sumOf { it.interestPart }
@@ -308,7 +330,7 @@ class LoanEngine {
         // 【الخطوة 5】حساب الإجماليات
         // ══════════════════════════════════════════════════════════════
         val trueTotalPayment = schedule.sumOf { it.payment }
-        val trueTotalInterest = trueTotalPayment - (initialPrincipal - currentBalance.coerceAtLeast(0.0)) - (schedule.size * monthlyRecurringCost)
+        val trueTotalInterest = schedule.sumOf { it.interestPart }
 
         // صافي القيمة الحالية (NPV) بخصم التضخم
         val inflationMonthlyRate = (input.inflationRate / 100.0) / 12.0
@@ -728,5 +750,58 @@ class LoanEngine {
             rate = newRate
         }
         return rate // Return best guess if it didn't strictly converge
+    }
+
+    fun calculateLiveAmortization(activeLoan: ActiveLoan, isArabic: Boolean, currentDate: LocalDate = LocalDate.now()): LiveCalculationResult {
+        val startLocalDate = LocalDate.ofEpochDay(activeLoan.startDateMillis / (1000 * 60 * 60 * 24))
+        
+        val monthsElapsed = ChronoUnit.MONTHS.between(startLocalDate.withDayOfMonth(1), currentDate.withDayOfMonth(1)).toInt()
+        val pastPaidMonths = monthsElapsed.coerceAtLeast(0).coerceAtMost(activeLoan.OriginalMonths)
+
+        val remainingMonths = (activeLoan.OriginalMonths - pastPaidMonths).coerceAtLeast(1)
+        
+        val liveInput = LoanInput(
+            assetPrice = activeLoan.currentBalanceOverride,
+            downPayment = 0.0,
+            months = remainingMonths,
+            annualRate = activeLoan.currentActiveRate,
+            rateType = activeLoan.rateType
+        )
+        
+        val futureResult = calculate(liveInput, isArabic)
+        val progressPercentage = if (activeLoan.OriginalMonths > 0) (pastPaidMonths.toDouble() / activeLoan.OriginalMonths.toDouble()) * 100.0 else 0.0
+        
+        val insight = if (pastPaidMonths <= activeLoan.OriginalMonths * 0.3) {
+            FinancialInsight(
+                if(isArabic) "💡 الوقت الذهبي للسداد المبكر!" else "💡 Golden Time for Prepayment!",
+                if(isArabic) "أنت في الشهر $pastPaidMonths من أصل ${activeLoan.OriginalMonths}. دفع مبلغ إضافي اليوم سيقضي على فوائد هائلة في المستقبل ويقصر عمر القرض!" 
+                else "You are in month $pastPaidMonths of ${activeLoan.OriginalMonths}. Prepaying now will crush huge future interest!",
+                InsightType.TIP
+            )
+        } else if (pastPaidMonths >= activeLoan.OriginalMonths * 0.8) {
+            FinancialInsight(
+                if(isArabic) "✅ تقترب من خط النهاية!" else "✅ Near the finish line!",
+                if(isArabic) "تبقّى لك $remainingMonths أشهر فقط لإنهاء هذا العبء. حافظ على الالتزام!" 
+                else "Only $remainingMonths months left to finish. Keep it up!",
+                InsightType.SUCCESS
+            )
+        } else {
+            FinancialInsight(
+                if(isArabic) "📊 رحلة منتظمة" else "📊 Steady Progress",
+                if(isArabic) "لقد قطعت ${String.format("%.1f", progressPercentage)}% من عمر القرض. ركز على سداد قسط هذا الشهر لتجنب الغرامات المزعجة." 
+                else "You've covered ${String.format("%.1f", progressPercentage)}% of the loan. Focus on paying this month's EMI to avoid penalties.",
+                InsightType.TIP
+            )
+        }
+        
+        return LiveCalculationResult(
+            pastPaidMonths = pastPaidMonths,
+            remainingMonths = remainingMonths,
+            progressPercentage = progressPercentage,
+            remainingBalance = activeLoan.currentBalanceOverride,
+            estimatedFutureInterest = futureResult.totalInterest,
+            fullSchedule = futureResult.schedule,
+            proactiveInsight = insight
+        )
     }
 }

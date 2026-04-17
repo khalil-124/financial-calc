@@ -5,8 +5,8 @@ data class BalloonPayment(
     val amount: Double,
     val strategy: ExtraPaymentStrategy = ExtraPaymentStrategy.REDUCE_TERM
 )
-data class ExtraPayment(val month: Int, val amount: Double)
-data class ExtraPaymentPeriod(val startMonth: Int, val endMonth: Int, val amountPerMonth: Double)
+data class ExtraPayment(val month: Int, val amount: Double, val strategy: ExtraPaymentStrategy = ExtraPaymentStrategy.REDUCE_TERM)
+data class ExtraPaymentPeriod(val startMonth: Int, val endMonth: Int, val amountPerMonth: Double, val strategy: ExtraPaymentStrategy = ExtraPaymentStrategy.REDUCE_TERM)
 
 data class FinancialInsight(
     val title: String,
@@ -39,10 +39,10 @@ data class LoanInput(
     val capitalizeGraceInterest: Boolean = true,
     val inflationRate: Double = 2.5,
     val extraMonthly: Double = 0.0,
+    val extraMonthlyStrategy: ExtraPaymentStrategy = ExtraPaymentStrategy.REDUCE_TERM,
     val balloonPayments: List<BalloonPayment> = emptyList(),
     val manualExtraPayments: List<ExtraPayment> = emptyList(),
     val extraPaymentPeriods: List<ExtraPaymentPeriod> = emptyList(),
-    val extraPaymentStrategy: ExtraPaymentStrategy = ExtraPaymentStrategy.REDUCE_TERM,
     val earlySettlementFeePercent: Double = 0.0,
     val earlySettlementFeeFixed: Double = 0.0,
     val mandatoryCardFee: Double = 0.0 
@@ -169,4 +169,18 @@ data class RateShockResult(
     val monthlyDifference: Double,
     val totalExtraInterest: Double,
     val impactWarning: String
+)
+
+// ══════════════════════════════════════════════════════════
+// كائنات التتبع الحي (Live Tracking)
+// ══════════════════════════════════════════════════════════
+
+data class LiveCalculationResult(
+    val pastPaidMonths: Int,
+    val remainingMonths: Int,
+    val progressPercentage: Double,
+    val remainingBalance: Double,
+    val estimatedFutureInterest: Double,
+    val fullSchedule: List<AmortizationMonth>,
+    val proactiveInsight: FinancialInsight?
 )
