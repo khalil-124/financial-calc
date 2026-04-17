@@ -150,12 +150,14 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
     
     // Live Rate State
     var fedRate by remember { mutableStateOf<LiveRatesEngine.LiveRate?>(null) }
+    var cbjRate by remember { mutableStateOf<LiveRatesEngine.LiveRate?>(null) }
     var fetchingRate by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
     
     LaunchedEffect(Unit) {
         fetchingRate = true
         fedRate = LiveRatesEngine.fetchFedRate()
+        cbjRate = LiveRatesEngine.fetchCBJRate()
         fetchingRate = false
     }
 
@@ -231,6 +233,65 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                     }
                 }
             }
+
+            // --- LIVE CBJ RATE WIDGET ---
+            androidx.compose.animation.AnimatedVisibility(visible = !fetchingRate && cbjRate != null) {
+                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp).clickable { uriHandler.openUri("https://www.cbj.gov.jo") },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = CalcColors.surface().copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, CalcColors.accent().copy(alpha = 0.3f))
+                ) {
+                    val rate = cbjRate
+                    if (rate != null) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.AccountBalance, contentDescription = "Live Rate", tint = CalcColors.accent(), modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = if (currentLang == "ar") "البنك المركزي الأردني" else "Central Bank of Jordan",
+                                        color = CalcColors.textPrimary(),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text(
+                                    text = if (currentLang == "ar") "سقف العبء (انقر للتفاصيل)" else "DTI Regs (Click for details)",
+                                    color = CalcColors.textMuted(),
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "${rate.rate}%",
+                                    color = Color(0xFF4CAF50),
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                TextButton(
+                                    onClick = { 
+                                        onInputChanged(input.copy(annualRate = rate.rate)) 
+                                    },
+                                    contentPadding = PaddingValues(0.dp),
+                                    modifier = Modifier.height(24.dp)
+                                ) {
+                                    Text(
+                                        if (currentLang == "ar") "استخدم هذه الفائدة" else "Apply to Calc",
+                                        fontSize = 11.sp,
+                                        color = CalcColors.accent()
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         item {
@@ -266,7 +327,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                     Switch(
                         checked = isExistingLoan, 
                         onCheckedChange = { isExistingLoan = it; if(it) onInputChanged(input.copy(downPayment = 0.0)) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = CalcColors.accent(), checkedTrackColor = CalcColors.accent().copy(alpha=0.5f))
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = CalcColors.accent())
                     )
                 }
 
@@ -389,7 +450,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                         Switch(
                             checked = input.deductFeesFromLoan,
                             onCheckedChange = { onInputChanged(input.copy(deductFeesFromLoan = it)) },
-                            colors = SwitchDefaults.colors(checkedThumbColor = CalcColors.accent())
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = CalcColors.accent())
                         )
                     }
 
@@ -444,7 +505,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                         Switch(
                             checked = input.deductInsuranceFromLoan,
                             onCheckedChange = { onInputChanged(input.copy(deductInsuranceFromLoan = it)) },
-                            colors = SwitchDefaults.colors(checkedThumbColor = CalcColors.accent())
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = CalcColors.accent())
                         )
                     }
 
@@ -663,6 +724,12 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                 }
                 
                 Divider(Modifier.padding(vertical = 8.dp), color = Color.White.copy(0.2f))
+                
+                ResItem(if(currentLang=="ar") "قيمة القرض الأساسية (رأس المال)" else "Original Loan Value", "JOD ${formatter.format(input.assetPrice)}", Color.White.copy(0.7f))
+                ResItem(if(currentLang=="ar") "إجمالي الالتزام الشامل" else "Total Obligation (Incl. all fees)", "JOD ${formatter.format(result.totalPayment)}", Color(0xFFFF5252), isBold = true)
+                ResItem(if(currentLang=="ar") "نسبة التكلفة لأصل القرض" else "Total Cost of Borrowing Ratio", String.format("%.1f%%", result.interestToPrincipalRatio), Color.White.copy(0.7f))
+                
+                Divider(Modifier.padding(vertical = 8.dp), color = Color.White.copy(0.2f))
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                     Text(if(currentLang=="ar") "النسبة السنوية الحقيقية (APR)" else "True APR (Annual Percentage Rate)", fontSize = 11.sp, color = CalcColors.SoftGold)
                     Text(String.format("%.2f%%", result.trueAPR), fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold)
@@ -758,14 +825,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                     }
                     Row(Modifier.fillMaxWidth().padding(top = 2.dp), Arrangement.SpaceBetween) {
                         Text("0%", fontSize = 8.sp, color = CalcColors.textMuted())
-                        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                        Text(
-                            text = if(currentLang=="ar") "مراجعة تعليمات البنك المركزي (انقر هنا)" else "Review Central Bank Regs (Click Here)", 
-                            fontSize = 9.sp, 
-                            color = CalcColors.accent(),
-                            modifier = Modifier.clickable { uriHandler.openUri("https://www.cbj.gov.jo") },
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text(if(currentLang=="ar") "حد العبء" else "DTI Limit", fontSize = 8.sp, color = CalcColors.textMuted().copy(0.7f))
                         Text("100%", fontSize = 8.sp, color = CalcColors.textMuted())
                     }
                     if(currentLang=="ar") {

@@ -21,8 +21,7 @@ fun main() {
         months = 12, 
         annualRate = 5.0, 
         rateType = RateType.FLAT,
-        manualExtraPayments = listOf(ExtraPayment(6, 5000.0)),
-        extraPaymentStrategy = ExtraPaymentStrategy.REDUCE_EMI
+        manualExtraPayments = listOf(ExtraPayment(6, 5000.0))
     )
     val res2 = engine.calculate(input2, false)
     println("\nScenario 2: Flat with 5,000 Extra in month 6 (Reduce EMI)")

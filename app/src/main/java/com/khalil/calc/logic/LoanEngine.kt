@@ -187,7 +187,8 @@ class LoanEngine {
                 totalPayment = totalInterestPaidThisMonth + totalPrincipalReduction + feePaidThisMonth + monthlyRecurringCost
                 
                 currentBalance = (currentBalance + unpaidInterest - totalPrincipalReduction).coerceAtLeast(0.0)
-            } else if (isMurabaha || isFlatRate) {
+            } else if (isMurabaha) {
+                // المرابحة (التمويل الإسلامي): الربح ثابت والدفع المبكر يوزع على الأصل والربح معاً (إلا في حال الخصم التشجيعي غير المدرج هنا)
                 val currentUnifiedDebt = if (ratioP > 0) currentBalance / ratioP else 0.0
                 
                 actualEMI = minOf(baseEMI, currentUnifiedDebt)
@@ -206,6 +207,35 @@ class LoanEngine {
                 val balloonPrincipal = actualBalloon * ratioP
                 val extraInterest = actualExtra * ratioI
                 val balloonInterest = actualBalloon * ratioI
+                
+                totalPrincipalReduction = emiPrincipal + extraPrincipal + balloonPrincipal
+                totalInterestPaidThisMonth = emiInterest + extraInterest + balloonInterest
+                
+                totalPayment = totalInterestPaidThisMonth + totalPrincipalReduction + feePaidThisMonth + monthlyRecurringCost
+                
+                currentBalance = (currentBalance - totalPrincipalReduction).coerceAtLeast(0.0)
+            } else if (isFlatRate) {
+                // الفائدة الثابتة التقليدية (Flat Rate): الدفع الإضافي المبكر يُخصم من الأصل مباشرة (Principal)، مما يقلل عمر القرض ويوفر فوائد الأشهر الملغاة
+                val currentUnifiedDebt = if (ratioP > 0) currentBalance / ratioP else 0.0
+                
+                actualEMI = minOf(baseEMI, currentUnifiedDebt)
+                emiPrincipal = actualEMI * ratioP
+                emiInterest = actualEMI * ratioI
+                unpaidInterest = 0.0
+                
+                val balanceAfterEMI = (currentBalance - emiPrincipal).coerceAtLeast(0.0)
+                val totalExtraAvailable = extraPaidNow + balloonToday
+                // الدفعة الإضافية لا تتجاوز أصل القرض المتبقي
+                val actualExtraTotal = minOf(totalExtraAvailable, balanceAfterEMI)
+                
+                actualExtra = if (totalExtraAvailable > 0) actualExtraTotal * (extraPaidNow / totalExtraAvailable) else 0.0
+                actualBalloon = if (totalExtraAvailable > 0) actualExtraTotal * (balloonToday / totalExtraAvailable) else 0.0
+                
+                // في الفائدة الثابتة المبكرة نعفي العميل من دفع فوائد على المبلغ الإضافي المدفوع مبكراً (Rebate)
+                val extraPrincipal = actualExtra
+                val balloonPrincipal = actualBalloon
+                val extraInterest = 0.0
+                val balloonInterest = 0.0
                 
                 totalPrincipalReduction = emiPrincipal + extraPrincipal + balloonPrincipal
                 totalInterestPaidThisMonth = emiInterest + extraInterest + balloonInterest

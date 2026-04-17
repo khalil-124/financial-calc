@@ -26,8 +26,7 @@ class LoanEngineAdvancedTest {
             months = 60,
             annualRate = 6.0,
             rateType = RateType.REDUCING,
-            extraMonthly = 0.0,
-            extraPaymentStrategy = ExtraPaymentStrategy.REDUCE_EMI
+            extraMonthly = 0.0
         )
         
         // القسط الأساسي لـ 20,000 على 5 سنوات بفائدة 6% هو حوالي 386.66
@@ -59,8 +58,7 @@ class LoanEngineAdvancedTest {
             months = 60,
             annualRate = 6.0,
             rateType = RateType.REDUCING,
-            extraMonthly = 0.0,
-            extraPaymentStrategy = ExtraPaymentStrategy.REDUCE_TERM
+            extraMonthly = 0.0
         )
         
         val initialResult = engine.calculate(input, false)

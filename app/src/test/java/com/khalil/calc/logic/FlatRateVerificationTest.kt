@@ -58,8 +58,7 @@ class FlatRateVerificationTest {
             months = 12, 
             annualRate = 5.0, 
             rateType = RateType.FLAT,
-            manualExtraPayments = listOf(ExtraPayment(6, 5000.0)),
-            extraPaymentStrategy = ExtraPaymentStrategy.REDUCE_EMI
+            manualExtraPayments = listOf(ExtraPayment(6, 5000.0))
         )
         val result = engine.calculate(input, false)
         
