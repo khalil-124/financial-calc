@@ -36,6 +36,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.text.KeyboardOptions
@@ -108,16 +111,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolean, onThemeToggle: () -> Unit) {
+fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolean, onThemeToggle: () -> Unit, viewModel: LoanViewModel = viewModel()) {
     var selectedTab by remember { mutableStateOf(0) }
-    var currentInput by remember { mutableStateOf(LoanInput(
-        assetPrice = 25000.0,
-        downPayment = 5000.0,
-        annualRate = 6.5,
-        months = 60,
-        balloonPayments = listOf(BalloonPayment(12, 2000.0), BalloonPayment(24, 2000.0)),
-        extraPaymentPeriods = listOf(ExtraPaymentPeriod(1, 12, 100.0))
-    )) }
+
+    val currentInput by viewModel.input.collectAsState()
+
     var financeProfile by remember { mutableStateOf(PersonalFinanceProfile()) }
     val context = LocalContext.current
     val dao = remember { AppDatabase.getDatabase(context).loanDao() }
@@ -134,8 +132,8 @@ fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolea
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().background(CalcColors.background()).padding(padding)) {
             when (selectedTab) {
-                0 -> CalculatorTab(currentInput, currentLang, onLanguageChange, { currentInput = it }, dao, isDark, onThemeToggle, financeProfile)
-                1 -> MyLoansTab(dao, currentLang) { currentInput = LoanInput(assetPrice = it.assetPrice, downPayment = it.downPayment, months = it.months, annualRate = it.annualRate, rateType = it.rateType); selectedTab = 0 }
+                0 -> CalculatorTab(currentInput, currentLang, onLanguageChange, { viewModel.updateInput(it) }, dao, isDark, onThemeToggle, financeProfile, viewModel)
+                1 -> MyLoansTab(dao, currentLang) { viewModel.updateInput(LoanInput(assetPrice = it.assetPrice, downPayment = it.downPayment, months = it.months, annualRate = it.annualRate, rateType = it.rateType)); selectedTab = 0 }
                 2 -> CompareTab(dao, currentLang)
                 3 -> FinancialProfileTab(financeProfile, currentLang, currentInput) { financeProfile = it }
             }
@@ -144,9 +142,15 @@ fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolea
 }
 
 @Composable
-fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () -> Unit, onInputChanged: (LoanInput) -> Unit, dao: LoanDao, isDark: Boolean, onThemeToggle: () -> Unit, financeProfile: PersonalFinanceProfile = PersonalFinanceProfile()) {
+fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () -> Unit, onInputChanged: (LoanInput) -> Unit, dao: LoanDao, isDark: Boolean, onThemeToggle: () -> Unit, financeProfile: PersonalFinanceProfile = PersonalFinanceProfile(), viewModel: LoanViewModel) {
     var showAdvanced by remember { mutableStateOf(false) }
-    val result = remember(input, currentLang) { LoanEngine().calculate(input, currentLang == "ar") }
+
+    val resultArabic by viewModel.resultArabic.collectAsState()
+    val resultEnglish by viewModel.resultEnglish.collectAsState()
+
+    val result = if (currentLang == "ar") resultArabic else resultEnglish
+    if (result == null) return
+
     val formatter = remember { DecimalFormat("#,##0.00") }
     
     // Live Rate State
@@ -695,51 +699,79 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                 LoanPie(result, true)
                 Spacer(Modifier.height(16.dp))
                 
-                // --- مبالغ القرض والرسوم ---
-                ResItem(if(currentLang=="ar") "القسط الشهري الإجمالي" else "Total Monthly Installment", "JOD ${formatter.format(result.monthlyEMI)}", Color.White, isBold = true)
-                if (input.monthlyInsurance > 0 || input.annualTax > 0 || input.mandatoryCardFee > 0) {
-                    val monthlyFees = input.monthlyInsurance + (input.annualTax/12.0) + (input.mandatoryCardFee/12.0)
-                    ResItem(if(currentLang=="ar") "يشمل رسوم وتأمين شهري بقيمة" else "Incl. monthly fees of", "JOD ${formatter.format(monthlyFees)}", Color.White.copy(0.6f))
+                Spacer(Modifier.height(16.dp))
+                
+                // Highlighted Dashboard Focus
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Column(horizontalAlignment = Alignment.Start) {
+                        Text(if(currentLang=="ar") "القسط الشهري (EMI)" else "Monthly EMI", fontSize = 14.sp, color = Color.White.copy(0.7f))
+                        Text("JOD ${formatter.format(result.monthlyEMI)}", fontSize = 32.sp, fontWeight = FontWeight.Black, color = Color(0xFF4CAF50))
+                    }
                 }
                 
                 Spacer(Modifier.height(8.dp))
-                
-                val loanPrincipal = (input.assetPrice - input.downPayment)
-                val upfrontFees = loanPrincipal * (input.feePercent / 100.0) + input.feeFixed
-                val upfrontIns = loanPrincipal * (input.insuranceUpfrontPercent / 100.0) + input.insuranceUpfrontFixed
-                
-                if (upfrontFees > 0 || upfrontIns > 0) {
-                    if (upfrontFees > 0) ResItem(if(currentLang=="ar") "رسوم معاملات (إبتدائية)" else "Upfront Processing Fees", "JOD ${formatter.format(upfrontFees)}", Color.White.copy(0.7f))
-                    if (upfrontIns > 0) ResItem(if(currentLang=="ar") "تأمين حياة (ابتدائي)" else "Upfront Life Insurance", "JOD ${formatter.format(upfrontIns)}", Color.White.copy(0.7f))
-                    
-                    ResItem(if(currentLang=="ar") "صافي المبلغ المستلم" else "Net Amount Received", "JOD ${formatter.format(result.netReceived)}", Color.White, isBold = true)
-                    Divider(Modifier.padding(vertical = 4.dp), color = Color.White.copy(0.05f))
-                }
-                
-                ResItem(if(currentLang=="ar") "إجمالي الفوائد المستحقة" else "Total Interest to Pay", "JOD ${formatter.format(result.totalInterest)}", Color.White.copy(0.7f))
-                if (result.totalInsurance > 0) {
-                    ResItem(if(currentLang=="ar") "إجمالي تكاليف التأمين" else "Total Insurance Cost", "JOD ${formatter.format(result.totalInsurance)}", Color.White.copy(0.7f))
-                }
-                if (result.earlySettlementFeesTotal > 0) {
-                    ResItem(if(currentLang=="ar") "رسوم السداد المبكر (للإضافي)" else "Early Settlement Fees", "JOD ${formatter.format(result.earlySettlementFeesTotal)}", Color(0xFFFFB74D))
-                }
-                
-                Divider(Modifier.padding(vertical = 8.dp), color = Color.White.copy(0.2f))
-                
-                ResItem(if(currentLang=="ar") "قيمة القرض الأساسية (رأس المال)" else "Original Loan Value", "JOD ${formatter.format(input.assetPrice)}", Color.White.copy(0.7f))
-                ResItem(if(currentLang=="ar") "إجمالي الالتزام الشامل" else "Total Obligation (Incl. all fees)", "JOD ${formatter.format(result.totalPayment)}", Color(0xFFFF5252), isBold = true)
-                ResItem(if(currentLang=="ar") "نسبة التكلفة لأصل القرض" else "Total Cost of Borrowing Ratio", String.format("%.1f%%", result.interestToPrincipalRatio), Color.White.copy(0.7f))
-                
-                Divider(Modifier.padding(vertical = 8.dp), color = Color.White.copy(0.2f))
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                    Text(if(currentLang=="ar") "النسبة السنوية الحقيقية (APR)" else "True APR (Annual Percentage Rate)", fontSize = 11.sp, color = CalcColors.SoftGold)
-                    Text(String.format("%.2f%%", result.trueAPR), fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                }
-                if (kotlin.math.abs(result.trueAPR - result.nominalAPR) > 0.01) {
-                    Row(Modifier.fillMaxWidth(), Arrangement.End) {
-                        Text(if(currentLang=="ar") "الفائدة الاسمية كانت ${result.nominalAPR}%" else "Nominal rate was ${result.nominalAPR}%", fontSize = 9.sp, color = Color.White.copy(0.6f))
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Column(horizontalAlignment = Alignment.Start) {
+                        Text(if(currentLang=="ar") "إجمالي الفوائد المستحقة" else "Total Interest to Pay", fontSize = 12.sp, color = Color.White.copy(0.7f))
+                        Text("JOD ${formatter.format(result.totalInterest)}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFF5252))
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(if(currentLang=="ar") "إجمالي الالتزام" else "Total Obligation", fontSize = 12.sp, color = Color.White.copy(0.7f))
+                        Text("JOD ${formatter.format(result.totalPayment)}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
+                
+                Spacer(Modifier.height(16.dp))
+                Divider(color = Color.White.copy(0.1f))
+                
+                var showDetailedSummary by remember { mutableStateOf(false) }
+                Row(Modifier.fillMaxWidth().clickable { showDetailedSummary = !showDetailedSummary }.padding(vertical = 8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                    Text(if(currentLang=="ar") "التفاصيل الدقيقة والرسوم" else "Detailed Breakdown & Fees", fontSize = 12.sp, color = CalcColors.SoftGold, fontWeight = FontWeight.Bold)
+                    Icon(if(showDetailedSummary) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = CalcColors.SoftGold)
+                }
+
+                androidx.compose.animation.AnimatedVisibility(visible = showDetailedSummary) {
+                    Column(Modifier.fillMaxWidth()) {
+                        val monthlyFees = input.monthlyInsurance + (input.annualTax / 12.0) + (input.mandatoryCardFee / 12.0)
+                        if (monthlyFees > 0) {
+                            ResItem(if(currentLang=="ar") "يشمل رسوم وتأمين شهري بقيمة" else "Incl. monthly fees of", "JOD ${formatter.format(monthlyFees)}", Color.White.copy(0.6f))
+                        }
+
+                        val loanPrincipal = (input.assetPrice - input.downPayment)
+                        val upfrontFees = loanPrincipal * (input.feePercent / 100.0) + input.feeFixed
+                        val upfrontIns = loanPrincipal * (input.insuranceUpfrontPercent / 100.0) + input.insuranceUpfrontFixed
+
+                        if (upfrontFees > 0 || upfrontIns > 0) {
+                            if (upfrontFees > 0) ResItem(if(currentLang=="ar") "رسوم معاملات (إبتدائية)" else "Upfront Processing Fees", "JOD ${formatter.format(upfrontFees)}", Color.White.copy(0.7f))
+                            if (upfrontIns > 0) ResItem(if(currentLang=="ar") "تأمين حياة (ابتدائي)" else "Upfront Life Insurance", "JOD ${formatter.format(upfrontIns)}", Color.White.copy(0.7f))
+
+                            ResItem(if(currentLang=="ar") "صافي المبلغ المستلم" else "Net Amount Received", "JOD ${formatter.format(result.netReceived)}", Color.White, isBold = true)
+                            Divider(Modifier.padding(vertical = 4.dp), color = Color.White.copy(0.05f))
+                        }
+
+                        if (result.totalInsurance > 0) {
+                            ResItem(if(currentLang=="ar") "إجمالي تكاليف التأمين" else "Total Insurance Cost", "JOD ${formatter.format(result.totalInsurance)}", Color.White.copy(0.7f))
+                        }
+                        if (result.earlySettlementFeesTotal > 0) {
+                            ResItem(if(currentLang=="ar") "رسوم السداد المبكر (للإضافي)" else "Early Settlement Fees", "JOD ${formatter.format(result.earlySettlementFeesTotal)}", Color(0xFFFFB74D))
+                        }
+
+                        ResItem(if(currentLang=="ar") "قيمة القرض الأساسية (رأس المال)" else "Original Loan Value", "JOD ${formatter.format(input.assetPrice)}", Color.White.copy(0.7f))
+                        ResItem(if(currentLang=="ar") "نسبة التكلفة لأصل القرض" else "Total Cost of Borrowing Ratio", String.format("%.1f%%", result.interestToPrincipalRatio), Color.White.copy(0.7f))
+
+                        Divider(Modifier.padding(vertical = 8.dp), color = Color.White.copy(0.2f))
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Text(if(currentLang=="ar") "النسبة السنوية الحقيقية (APR)" else "True APR (Annual Percentage Rate)", fontSize = 11.sp, color = CalcColors.SoftGold)
+                            Text(String.format("%.2f%%", result.trueAPR), fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                        if (kotlin.math.abs(result.trueAPR - result.nominalAPR) > 0.01) {
+                            Row(Modifier.fillMaxWidth(), Arrangement.End) {
+                                Text(if(currentLang=="ar") "الفائدة الاسمية كانت ${result.nominalAPR}%" else "Nominal rate was ${result.nominalAPR}%", fontSize = 9.sp, color = Color.White.copy(0.6f))
+                            }
+                        }
+                    }
+                }
+
                 if (result.monthsSaved > 0 || result.interestSaved > 0) {
                     Divider(Modifier.padding(vertical = 8.dp), color = Color.White.copy(0.2f))
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -954,7 +986,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
             val ctx = androidx.compose.ui.platform.LocalContext.current
             Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = { PdfGenerator.generateAndPrint(ctx, input, result, currentLang == "ar", isYearly = false) },
+                    onClick = { com.khalil.calc.pdf.PdfGenerator.generateAndPrint(ctx, input, result, currentLang == "ar", isYearly = false) },
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = CalcColors.surface(), contentColor = CalcColors.textPrimary()),
@@ -965,7 +997,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                     Text(if (currentLang == "ar") "PDF (شهري)" else "PDF (Monthly)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
                 Button(
-                    onClick = { PdfGenerator.generateAndPrint(ctx, input, result, currentLang == "ar", isYearly = true) },
+                    onClick = { com.khalil.calc.pdf.PdfGenerator.generateAndPrint(ctx, input, result, currentLang == "ar", isYearly = true) },
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = CalcColors.surface(), contentColor = CalcColors.textPrimary()),
@@ -1030,7 +1062,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
 }
 
 @Composable
-fun ScheduleTable(schedule: List<AmortizationMonth>, formatter: DecimalFormat, isArabic: Boolean) {
+fun ScheduleTable(schedule: List<AmortizationMonth>, formatter: DecimalFormat, isArabic: Boolean, input: LoanInput, result: CalculationResult) {
     val context = androidx.compose.ui.platform.LocalContext.current
     // تتبع الكروت المفتوحة
     var expandedMonth by remember { mutableStateOf(-1) }
@@ -1263,150 +1295,20 @@ fun ScheduleTable(schedule: List<AmortizationMonth>, formatter: DecimalFormat, i
         Spacer(Modifier.height(20.dp))
         
         Button(
-            onClick = { exportScheduleToPdf(context, schedule, formatter, isArabic) },
+            onClick = { com.khalil.calc.pdf.PdfGenerator.generateAndPrint(context, input, result, isArabic, isYearly = false) },
             modifier = Modifier.fillMaxWidth().height(50.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = CalcColors.accent())
         ) {
             Icon(Icons.Default.PictureAsPdf, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text(if(isArabic) "حفظ الجدول كـ PDF" else "Save Schedule as PDF", fontWeight = FontWeight.Bold)
+            Text(if(isArabic) "تقرير PDF شامل" else "Generate Comprehensive PDF", fontWeight = FontWeight.Bold)
         }
     }
 }
 
-fun exportScheduleToPdf(context: Context, schedule: List<AmortizationMonth>, formatter: DecimalFormat, isArabic: Boolean) {
-    val webView = WebView(context)
-    val dir = if (isArabic) "rtl" else "ltr"
-    
-    var cumPrincipal = 0.0
-    var cumTotal = 0.0
-    val totalInterest = schedule.sumOf { it.interestPart }
-    val totalPrincipal = schedule.sumOf { it.principalPart }
-    val grandTotal = schedule.sumOf { it.payment }
-    val totalExtra = schedule.sumOf { it.extraPaid + it.balloonPaid }
-    
-    val css = """
-        @page { size: A4 landscape; margin: 12mm; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; padding: 8px; direction: $dir; }
-        h2 { color: #003366; text-align: center; margin-bottom: 4px; font-size: 16px; }
-        .sub { text-align: center; color: #888; font-size: 9px; margin-bottom: 12px; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #003366; color: #fff; padding: 7px 3px; font-size: 8px; border: 1px solid #002244; }
-        td { padding: 5px 3px; text-align: center; font-size: 8px; border: 1px solid #e0e0e0; }
-        tr:nth-child(even) { background: #f8f9fa; }
-        .int { color: #D32F2F; }
-        .pri { color: #2E7D32; font-weight: bold; }
-        .ext { color: #1565C0; font-weight: bold; }
-        .bal { color: #37474F; }
-        .cum { color: #90A4AE; font-size: 7px; }
-        .tp { font-weight: bold; color: #003366; }
-        .hl { background: #E8F5E9 !important; }
-        .hlb { background: #E3F2FD !important; }
-        .badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 7px; font-weight: bold; }
-        .b-pre { background: #C8E6C9; color: #1B5E20; }
-        .b-ext { background: #BBDEFB; color: #0D47A1; }
-        .b-grc { background: #FFE0B2; color: #E65100; }
-        .b-reg { background: #F5F5F5; color: #BDBDBD; }
-        .ft td { background: #003366 !important; color: #fff !important; font-weight: bold; font-size: 9px; }
-        .fl { text-align: ${if(isArabic) "right" else "left"} !important; }
-        .wm { text-align: center; font-size: 7px; color: #ccc; margin-top: 8px; }
-    """.trimIndent()
-
-    val html = StringBuilder()
-    html.append("<html><head><meta charset='utf-8'><style>$css</style></head><body>")
-    html.append("<h2>${if(isArabic) "جدول سداد القرض الاحترافي" else "Professional Loan Amortization Schedule"}</h2>")
-    html.append("<div class='sub'>${if(isArabic) "تقرير مالي تفصيلي — كل الأرقام بالدينار الأردني (JOD)" else "Detailed Financial Report — All amounts in JOD"}</div>")
-    
-    html.append("<table><thead>")
-    // صف المجموعات الرئيسية
-    html.append("<tr>")
-    html.append("<th rowspan='2'>${if(isArabic) "ش" else "#"}</th>")
-    html.append("<th rowspan='2'>${if(isArabic) "النوع" else "Type"}</th>")
-    html.append("<th colspan='5' style='background:#004080;'>${if(isArabic) "تفاصيل الدفعة" else "Payment Breakdown"}</th>")
-    html.append("<th rowspan='2' style='background:#01579B;'>${if(isArabic) "إجمالي الدفعة" else "Total"}</th>")
-    html.append("<th colspan='3' style='background:#2E7D32;'>${if(isArabic) "المدفوع حتى الآن" else "Paid So Far"}</th>")
-    html.append("<th colspan='3' style='background:#E65100;'>${if(isArabic) "المتبقي عليك" else "Remaining"}</th>")
-    html.append("</tr>")
-    // صف التفاصيل الفرعية
-    html.append("<tr>")
-    if (isArabic) {
-        html.append("<th>القسط</th><th>فائدة</th><th>أصل</th><th>إضافي</th><th>تأمين/رسوم</th>")
-        html.append("<th style='background:#388E3C;'>فوائد</th><th style='background:#388E3C;'>أصل</th><th style='background:#388E3C;'>إجمالي</th>")
-        html.append("<th style='background:#EF6C00;'>فوائد</th><th style='background:#EF6C00;'>أصل</th><th style='background:#EF6C00;'>إجمالي</th>")
-    } else {
-        html.append("<th>EMI</th><th>Int</th><th>Prin</th><th>Extra</th><th>Ins/Fee</th>")
-        html.append("<th style='background:#388E3C;'>Int</th><th style='background:#388E3C;'>Prin</th><th style='background:#388E3C;'>Total</th>")
-        html.append("<th style='background:#EF6C00;'>Int</th><th style='background:#EF6C00;'>Prin</th><th style='background:#EF6C00;'>Total</th>")
-    }
-    html.append("</tr></thead><tbody>")
-    
-    var cumInterest = 0.0
-    schedule.forEach { m ->
-        cumPrincipal += m.principalPart
-        cumInterest += m.interestPart
-        cumTotal += m.payment
-        val extra = m.extraPaid + m.balloonPaid
-        val regEMI = m.payment - extra
-        val remInterest = (totalInterest - cumInterest).coerceAtLeast(0.0)
-        val remTotal = m.remainingBalance + remInterest
-        val rc = when { m.balloonPaid > 0 -> "hl"; m.extraPaid > 0 -> "hlb"; else -> "" }
-        val (tl, tc) = when {
-            m.balloonPaid > 0 && m.extraPaid > 0 -> (if(isArabic) "سداد+إضافي" else "Pre+Ext") to "b-pre"
-            m.balloonPaid > 0 -> (if(isArabic) "سداد مبكر" else "Prepay") to "b-pre"
-            m.extraPaid > 0 -> (if(isArabic) "إضافي" else "Extra") to "b-ext"
-            m.isGrace -> (if(isArabic) "سماح" else "Grace") to "b-grc"
-            else -> (if(isArabic) "عادي" else "Reg") to "b-reg"
-        }
-        html.append("<tr class='$rc'>")
-        html.append("<td><b>${m.monthNumber}</b></td>")
-        html.append("<td><span class='badge $tc'>$tl</span></td>")
-        // تفاصيل الدفعة
-        html.append("<td>${formatter.format(regEMI.coerceAtLeast(0.0))}</td>")
-        html.append("<td class='int'>${formatter.format(m.interestPart)}</td>")
-        html.append("<td class='pri'>${formatter.format(m.principalPart)}</td>")
-        html.append("<td class='ext'>${if(extra > 0) "+${formatter.format(extra)}" else "—"}</td>")
-        html.append("<td style='color:#757575;'>${formatter.format(m.insurancePart + m.recurringFeesPart)}</td>")
-        // إجمالي الدفعة
-        html.append("<td class='tp'>${formatter.format(m.payment)}</td>")
-        // المدفوع حتى الآن
-        html.append("<td class='cum'>${formatter.format(cumInterest)}</td>")
-        html.append("<td class='cum'>${formatter.format(cumPrincipal)}</td>")
-        html.append("<td class='cum'>${formatter.format(cumTotal)}</td>")
-        // المتبقي
-        html.append("<td class='int'>${formatter.format(remInterest)}</td>")
-        html.append("<td class='bal'>${formatter.format(m.remainingBalance)}</td>")
-        html.append("<td style='font-weight:bold;color:#E65100;'>${formatter.format(remTotal)}</td>")
-        html.append("</tr>")
-    }
-    
-    html.append("<tr class='ft'>")
-    html.append("<td colspan='2' class='fl'>${if(isArabic) "الإجمالي" else "TOTAL"}</td>")
-    html.append("<td>—</td>")
-    html.append("<td>${formatter.format(totalInterest)}</td>")
-    html.append("<td>${formatter.format(totalPrincipal)}</td>")
-    html.append("<td>${if(totalExtra > 0) "+${formatter.format(totalExtra)}" else "—"}</td>")
-    html.append("<td>${formatter.format(schedule.sumOf { it.insurancePart + it.recurringFeesPart })}</td>")
-    html.append("<td>${formatter.format(grandTotal)}</td>")
-    html.append("<td>${formatter.format(totalInterest)}</td>")
-    html.append("<td>${formatter.format(totalPrincipal)}</td>")
-    html.append("<td>${formatter.format(grandTotal)}</td>")
-    html.append("<td>0.00</td><td>0.00</td><td>0.00</td>")
-    html.append("</tr></tbody></table>")
-    html.append("<p class='wm'>Generated by Smart Loan Calculator &bull; ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())}</p>")
-    html.append("</body></html>")
-
-    webView.webViewClient = object : WebViewClient() {
-        override fun onPageFinished(view: WebView?, url: String?) {
-            val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
-            val jobName = "Loan_Schedule_${System.currentTimeMillis()}"
-            val printAdapter = webView.createPrintDocumentAdapter(jobName)
-            val attrs = PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build()
-            printManager.print(jobName, printAdapter, attrs)
-        }
-    }
-    webView.loadDataWithBaseURL(null, html.toString(), "text/html", "utf-8", null)
-}
+// Function exportScheduleToPdf removed.
+// It is fully superseded by PdfGenerator.generateAndPrint
 
 @Composable
 fun LoanHealthGauge(ratio: Double, isArabic: Boolean) {
