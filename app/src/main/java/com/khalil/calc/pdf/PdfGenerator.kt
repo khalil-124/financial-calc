@@ -23,25 +23,48 @@ object PdfGenerator {
         isYearly: Boolean
     ) {
         try {
-            val webView = WebView(context)
+            // Unwrapping Activity context is essential for WebView UI stability
+            var activityContext = context
+            while (activityContext is ContextWrapper && activityContext !is Activity) {
+                activityContext = activityContext.baseContext
+            }
+
+            // Important: Use Activity context for WebView initialization
+            val webView = WebView(activityContext)
+            
+            // Strong reference to prevent GC during the async printing process
+            keepsAliveWebView = webView 
+            
             val html = buildHtml(input, result, isArabic, isYearly)
 
             webView.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    val printManager = context.getSystemService(Context.PRINT_SERVICE) as? PrintManager
-                    if (printManager == null) return
-                    
-                    val jobName = if(isArabic) "تقرير_القرض_${System.currentTimeMillis()}" else "Loan_Report_${System.currentTimeMillis()}"
-                    val printAdapter = webView.createPrintDocumentAdapter(jobName)
-                    val attrs = PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build()
-                    printManager.print(jobName, printAdapter, attrs)
+                    try {
+                        val printManager = activityContext.getSystemService(Context.PRINT_SERVICE) as? PrintManager
+                        if (printManager == null) return
+                        
+                        val jobName = if(isArabic) "تقرير_القرض_${System.currentTimeMillis()}" else "Loan_Report_${System.currentTimeMillis()}"
+                        val printAdapter = webView.createPrintDocumentAdapter(jobName)
+                        val attrs = PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build()
+                        printManager.print(jobName, printAdapter, attrs)
+                    } catch (e: Exception) {
+                        android.util.Log.e("PdfGenerator", "Print error: ${e.message}")
+                    }
+                }
+                
+                override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
+                    android.util.Log.e("PdfGenerator", "WebView Load Error: ${error?.description}")
+                    keepsAliveWebView = null
                 }
             }
             
+            // Standard loadData call on the UI thread
             webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
             
-        } catch (e: Exception) {
-            android.util.Log.e("PdfGenerator", "Failed to print: ${e.message}")
+        } catch (e: Throwable) {
+            // Catching Throwable to capture even non-Exception crashes for logging
+            android.util.Log.e("PdfGenerator", "Immediate Crash: ${e.message}")
+            e.printStackTrace()
         }
     }
 
