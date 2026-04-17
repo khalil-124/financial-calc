@@ -1,6 +1,8 @@
 package com.khalil.calc.pdf
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.webkit.WebView
@@ -21,11 +23,16 @@ object PdfGenerator {
         isYearly: Boolean
     ) {
         try {
+            var activityContext = context
+            while (activityContext is ContextWrapper && activityContext !is Activity) {
+                activityContext = activityContext.baseContext
+            }
+
             // Show feedback to user
             val startMsg = if(isArabic) "جاري تجهيز التقرير..." else "Preparing report..."
-            android.widget.Toast.makeText(context, startMsg, android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(activityContext, startMsg, android.widget.Toast.LENGTH_SHORT).show()
 
-            val webView = WebView(context)
+            val webView = WebView(activityContext)
             keepsAliveWebView = webView // Hold reference to prevent GC
             
             val html = buildHtml(input, result, isArabic, isYearly)
@@ -33,7 +40,7 @@ object PdfGenerator {
             webView.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     try {
-                        val printManager = context.getSystemService(Context.PRINT_SERVICE) as? PrintManager
+                        val printManager = activityContext.getSystemService(Context.PRINT_SERVICE) as? PrintManager
                         if (printManager == null) {
                             android.util.Log.e("PdfGenerator", "PrintManager not available")
                             return
