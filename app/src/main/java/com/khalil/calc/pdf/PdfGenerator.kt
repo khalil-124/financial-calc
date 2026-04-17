@@ -22,10 +22,10 @@ object PdfGenerator {
         val html = buildHtml(input, result, isArabic, isYearly)
         
         webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String) {
+            override fun onPageFinished(view: WebView?, url: String?) {
                 val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
                 val jobName = if(isArabic) "تقرير_القرض" else "Loan_Report"
-                val printAdapter = view.createPrintDocumentAdapter(jobName)
+                val printAdapter = webView.createPrintDocumentAdapter(jobName)
                 printManager.print(jobName, printAdapter, PrintAttributes.Builder().build())
             }
         }
