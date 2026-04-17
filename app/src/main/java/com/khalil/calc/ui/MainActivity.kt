@@ -38,6 +38,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import co.yml.charts.common.model.Point
+import co.yml.charts.ui.linechart.LineChart
+import co.yml.charts.ui.linechart.model.GridLines
+import co.yml.charts.ui.linechart.model.IntersectionPoint
+import co.yml.charts.ui.linechart.model.Line
+import co.yml.charts.ui.linechart.model.LineChartData
+import co.yml.charts.ui.linechart.model.LinePlotData
+import co.yml.charts.ui.linechart.model.LineStyle
+import co.yml.charts.ui.linechart.model.LineType
+import co.yml.charts.ui.linechart.model.SelectionHighlightPoint
+import co.yml.charts.ui.linechart.model.SelectionHighlightPopUp
+import co.yml.charts.ui.linechart.model.ShadowUnderLine
+import co.yml.charts.axis.AxisData
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.window.Dialog
@@ -702,10 +717,14 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                 Spacer(Modifier.height(16.dp))
                 
                 // Highlighted Dashboard Focus
+                val animatedEMI by animateFloatAsState(targetValue = result.monthlyEMI.toFloat(), animationSpec = tween(1000))
+                val animatedInterest by animateFloatAsState(targetValue = result.totalInterest.toFloat(), animationSpec = tween(1000))
+                val animatedTotal by animateFloatAsState(targetValue = result.totalPayment.toFloat(), animationSpec = tween(1000))
+
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                     Column(horizontalAlignment = Alignment.Start) {
                         Text(if(currentLang=="ar") "القسط الشهري (EMI)" else "Monthly EMI", fontSize = 14.sp, color = Color.White.copy(0.7f))
-                        Text("JOD ${formatter.format(result.monthlyEMI)}", fontSize = 32.sp, fontWeight = FontWeight.Black, color = Color(0xFF4CAF50))
+                        Text("JOD ${formatter.format(animatedEMI)}", fontSize = 32.sp, fontWeight = FontWeight.Black, color = Color(0xFF4CAF50))
                     }
                 }
                 
@@ -713,11 +732,11 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                     Column(horizontalAlignment = Alignment.Start) {
                         Text(if(currentLang=="ar") "إجمالي الفوائد المستحقة" else "Total Interest to Pay", fontSize = 12.sp, color = Color.White.copy(0.7f))
-                        Text("JOD ${formatter.format(result.totalInterest)}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFF5252))
+                        Text("JOD ${formatter.format(animatedInterest)}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFF5252))
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(if(currentLang=="ar") "إجمالي الالتزام" else "Total Obligation", fontSize = 12.sp, color = Color.White.copy(0.7f))
-                        Text("JOD ${formatter.format(result.totalPayment)}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("JOD ${formatter.format(animatedTotal)}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
                 
@@ -1062,8 +1081,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
 }
 
 @Composable
-fun ScheduleTable(schedule: List<AmortizationMonth>, formatter: DecimalFormat, isArabic: Boolean, input: LoanInput, result: CalculationResult) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+fun ScheduleTable(schedule: List<AmortizationMonth>, formatter: DecimalFormat, isArabic: Boolean) {
     // تتبع الكروت المفتوحة
     var expandedMonth by remember { mutableStateOf(-1) }
     
@@ -1294,16 +1312,16 @@ fun ScheduleTable(schedule: List<AmortizationMonth>, formatter: DecimalFormat, i
         
         Spacer(Modifier.height(20.dp))
         
-        Button(
-            onClick = { com.khalil.calc.pdf.PdfGenerator.generateAndPrint(context, input, result, isArabic, isYearly = false) },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = CalcColors.accent())
-        ) {
-            Icon(Icons.Default.PictureAsPdf, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(if(isArabic) "تقرير PDF شامل" else "Generate Comprehensive PDF", fontWeight = FontWeight.Bold)
-        }
+        // Button(
+        //     onClick = { com.khalil.calc.pdf.PdfGenerator.generateAndPrint(context, input, result, isArabic, isYearly = false) },
+        //     modifier = Modifier.fillMaxWidth().height(50.dp),
+        //     shape = RoundedCornerShape(12.dp),
+        //     colors = ButtonDefaults.buttonColors(containerColor = CalcColors.accent())
+        // ) {
+        //     Icon(Icons.Default.PictureAsPdf, contentDescription = null)
+        //     Spacer(Modifier.width(8.dp))
+        //     Text(if(isArabic) "تقرير PDF شامل" else "Generate Comprehensive PDF", fontWeight = FontWeight.Bold)
+        // }
     }
 }
 
@@ -1358,126 +1376,101 @@ fun LoanAmortizationChart(schedule: List<AmortizationMonth>, isArabic: Boolean) 
         Spacer(Modifier.height(8.dp))
 
         val maxBalance = schedule.first().openingBalance
-        val months = schedule.size
+        var totalInterestAmount = 0f
+        schedule.forEach { totalInterestAmount += it.interestPart.toFloat() }
 
-        if (maxBalance <= 0.0 || months == 0) return@PremiumCard
+        val principalPoints = mutableListOf<Point>()
+        val interestPoints = mutableListOf<Point>()
 
-        // Precalculate all points safely outside Canvas to prevent KAPT closure crashes
-        var totalInterestAmount = 0.0
-        for (m in schedule) {
-            totalInterestAmount += m.interestPart
+        var cumulativeInterest = 0f
+
+        // Month 0
+        principalPoints.add(Point(0f, maxBalance.toFloat()))
+        interestPoints.add(Point(0f, totalInterestAmount))
+
+        for ((index, m) in schedule.withIndex()) {
+            val monthFloat = (index + 1).toFloat()
+            principalPoints.add(Point(monthFloat, m.remainingBalance.toFloat()))
+            cumulativeInterest += m.interestPart.toFloat()
+            var remInt = totalInterestAmount - cumulativeInterest
+            if (remInt < 0f) remInt = 0f
+            interestPoints.add(Point(monthFloat, remInt))
         }
 
-        Canvas(modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .padding(top = 16.dp, bottom = 32.dp, start = 40.dp, end = 16.dp)
-        ) {
-            val width = size.width
-            val height = size.height
+        // Find maximum Y value overall for scale
+        val maxPointY = maxOf(maxBalance.toFloat(), totalInterestAmount)
+        val steps = 5
 
-            val pointX = { m: Int -> (m.toFloat() / months.toFloat()) * width }
-            val pointY = { b: Double -> height - ((b / maxBalance).toFloat() * height) }
+        val xAxisData = AxisData.Builder()
+            .axisStepSize(40.dp)
+            .backgroundColor(Color.Transparent)
+            .steps(schedule.size)
+            .labelData { i -> if (i % 12 == 0 && i > 0) "${i / 12}Y" else "" }
+            .labelAndAxisLinePadding(15.dp)
+            .axisLineColor(CalcColors.border())
+            .axisLabelColor(CalcColors.textMuted())
+            .build()
 
-            drawIntoCanvas { canvas ->
-                val paint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.parseColor("#78909C")
-                    textSize = 24f
-                    isAntiAlias = true
-                    textAlign = android.graphics.Paint.Align.RIGHT
-                }
+        val yAxisData = AxisData.Builder()
+            .steps(steps)
+            .backgroundColor(Color.Transparent)
+            .labelAndAxisLinePadding(20.dp)
+            .labelData { i ->
+                val yVal = (i * (maxPointY / steps))
+                if (yVal >= 1000) "${(yVal / 1000).toInt()}k" else yVal.toInt().toString()
+            }
+            .axisLineColor(CalcColors.border())
+            .axisLabelColor(CalcColors.textMuted())
+            .build()
 
-                // Y Axis
-                for (i in 0..4) {
-                    val y = height - (i * height / 4f)
-                    drawLine(
-                        color = Color.LightGray.copy(alpha = 0.3f),
-                        start = Offset(0f, y),
-                        end = Offset(width, y),
-                        strokeWidth = 1f,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
+        val lineChartData = LineChartData(
+            linePlotData = LinePlotData(
+                lines = listOf(
+                    Line(
+                        dataPoints = principalPoints,
+                        LineStyle(
+                            color = Color(0xFF1565C0),
+                            lineType = LineType.SmoothCurve(isDotted = false)
+                        ),
+                        IntersectionPoint(color = Color.Transparent, radius = 0.dp),
+                        SelectionHighlightPoint(color = Color(0xFF1565C0)),
+                        ShadowUnderLine(
+                            alpha = 0.3f,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color(0xFF1565C0).copy(0.3f), Color.Transparent)
+                            )
+                        ),
+                        SelectionHighlightPopUp()
+                    ),
+                    Line(
+                        dataPoints = interestPoints,
+                        LineStyle(
+                            color = Color(0xFFE53935),
+                            lineType = LineType.SmoothCurve(isDotted = false)
+                        ),
+                        IntersectionPoint(color = Color.Transparent, radius = 0.dp),
+                        SelectionHighlightPoint(color = Color(0xFFE53935)),
+                        ShadowUnderLine(
+                            alpha = 0.2f,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color(0xFFE53935).copy(0.2f), Color.Transparent)
+                            )
+                        ),
+                        SelectionHighlightPopUp()
                     )
-                    val value = maxBalance * (i / 4.0)
-                    val label = if (value >= 1000) "${(value / 1000).toInt()}k" else value.toInt().toString()
-                    canvas.nativeCanvas.drawText(label, -10f, y + 8f, paint)
-                }
-
-                // X Axis
-                paint.textAlign = android.graphics.Paint.Align.CENTER
-                val years = months / 12
-                val yearStep = if (years > 10) 5 else if (years > 5) 2 else 1
-                for (year in 0..years step yearStep) {
-                    if (year == 0) continue
-                    val m = year * 12
-                    val x = pointX(m)
-                    val label = if(isArabic) "${year}س" else "${year}y"
-                    if (x <= width) {
-                        canvas.nativeCanvas.drawText(label, x, height + 40f, paint)
-                    }
-                }
-            }
-
-            // Lines
-            val pathPrincipal = Path()
-            pathPrincipal.moveTo(pointX(0), pointY(maxBalance))
-
-            val pathInterest = Path()
-            pathInterest.moveTo(pointX(0), pointY(totalInterestAmount))
-
-            val pointsToHighlight = mutableListOf<Offset>()
-            
-            var cumulativeInterest = 0.0
-            for (i in schedule.indices) {
-                val month = schedule[i]
-                val x = pointX(i + 1)
-                
-                val py = pointY(month.remainingBalance)
-                pathPrincipal.lineTo(x, py)
-
-                cumulativeInterest += month.interestPart
-                var remainingInterest = totalInterestAmount - cumulativeInterest
-                if (remainingInterest < 0.0) remainingInterest = 0.0
-                val iy = pointY(remainingInterest)
-                pathInterest.lineTo(x, iy)
-
-                if (month.balloonPaid > 0) {
-                    pointsToHighlight.add(Offset(x, py))
-                    pointsToHighlight.add(Offset(x, iy))
-                }
-            }
-
-            val fillInterest = Path().apply { addPath(pathInterest) }
-            fillInterest.lineTo(width, height)
-            fillInterest.lineTo(0f, height)
-            fillInterest.close()
-            drawPath(
-                path = fillInterest,
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color(0xFFE53935).copy(alpha = 0.2f), Color.Transparent),
-                    startY = 0f, endY = height
                 )
+            ),
+            xAxisData = xAxisData,
+            yAxisData = yAxisData,
+            gridLines = GridLines(color = CalcColors.border().copy(0.3f)),
+            backgroundColor = Color.Transparent
+        )
+
+        Box(Modifier.fillMaxWidth().height(250.dp).padding(vertical = 16.dp)) {
+            LineChart(
+                modifier = Modifier.fillMaxWidth().height(250.dp),
+                lineChartData = lineChartData
             )
-
-            drawPath(path = pathInterest, color = Color(0xFFE53935), style = Stroke(width = 2.5f))
-
-            val fillPrincipal = Path().apply { addPath(pathPrincipal) }
-            fillPrincipal.lineTo(width, height)
-            fillPrincipal.lineTo(0f, height)
-            fillPrincipal.close()
-            drawPath(
-                path = fillPrincipal,
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color(0xFF1565C0).copy(alpha = 0.3f), Color.Transparent),
-                    startY = 0f, endY = height
-                )
-            )
-
-            drawPath(path = pathPrincipal, color = Color(0xFF1565C0), style = Stroke(width = 4f))
-            
-            for (point in pointsToHighlight) {
-                drawCircle(color = Color.White, radius = 8f, center = point)
-                drawCircle(color = Color(0xFF9C27B0), radius = 5f, center = point)
-            }
         }
         
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.Center) {
