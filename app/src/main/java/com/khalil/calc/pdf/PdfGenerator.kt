@@ -47,8 +47,8 @@ object PdfGenerator {
         val strInterest = if(isArabic) "إجمالي الفوائد:" else "Total Interest:"
         val strTotal = if(isArabic) "إجمالي المدفوعات:" else "Total Payments:"
         val strAPR = if(isArabic) "النسبة الحقيقية (APR):" else "True APR:"
-        val strType = if(isArabic) "طريقة العرض:" else "Report Type:"
-        val valType = if(isYearly) (if(isArabic) "سنوي مجمع" else "Yearly Consolidated") else (if(isArabic) "شهري مفصل" else "Monthly Detailed")
+        // val strType = if(isArabic) "طريقة العرض:" else "Report Type:"
+        // val valType = if(isYearly) (if(isArabic) "سنوي مجمع" else "Yearly Consolidated") else (if(isArabic) "شهري مفصل" else "Monthly Detailed")
 
         val html = StringBuilder()
         html.append("""

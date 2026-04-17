@@ -52,13 +52,13 @@ class FlatRateVerificationTest {
     @Test
     fun testFlatRate_ExtraPayment_ReduceEMI() {
         // 12 months, 5% Flat on 10,000
-        // Month 6: Extra 5,000 payment with REDUCE_EMI
+        // Month 6: Extra 3,000 payment with REDUCE_EMI (reduced from 5,000 because 5,000 pays off the entire remaining debt immediately and the loan ends at month 6)
         val input = LoanInput(
             assetPrice = 10000.0, 
             months = 12, 
             annualRate = 5.0, 
             rateType = RateType.FLAT,
-            manualExtraPayments = listOf(ExtraPayment(6, 5000.0))
+            manualExtraPayments = listOf(ExtraPayment(6, 3000.0, strategy = ExtraPaymentStrategy.REDUCE_EMI))
         )
         val result = engine.calculate(input, false)
         
