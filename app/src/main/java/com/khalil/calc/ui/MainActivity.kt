@@ -1,6 +1,7 @@
 package com.khalil.calc.ui
 
 import android.os.Bundle
+import androidx.compose.material.icons.filled.Timeline
 import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat
 import android.os.Build
@@ -148,7 +149,8 @@ fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolea
                 NavigationBarItem(selected = selectedTab == 1, onClick = { selectedTab = 1 }, icon = { Icon(Icons.Default.AccountBalanceWallet, null) }, label = { Text(if(currentLang=="ar") "محفظتي" else "Portfolio", maxLines = 1, fontSize = 10.sp) })
                 NavigationBarItem(selected = selectedTab == 2, onClick = { selectedTab = 2 }, icon = { Icon(Icons.Default.CompareArrows, null) }, label = { Text(if(currentLang=="ar") "مقارنة" else "Compare", maxLines = 1, fontSize = 10.sp) })
                 NavigationBarItem(selected = selectedTab == 3, onClick = { selectedTab = 3 }, icon = { Icon(Icons.Default.Speed, null) }, label = { Text(if(currentLang=="ar") "ديوني" else "Debt", maxLines = 1, fontSize = 10.sp) })
-                NavigationBarItem(selected = selectedTab == 4, onClick = { selectedTab = 4 }, icon = { Icon(Icons.Default.Person, null) }, label = { Text(if(currentLang=="ar") "ملفي" else "Profile", maxLines = 1, fontSize = 10.sp) })
+                NavigationBarItem(selected = selectedTab == 4, onClick = { selectedTab = 4 }, icon = { Icon(Icons.Default.Timeline, null) }, label = { Text(if(currentLang=="ar") "تتبع حي" else "Live", maxLines = 1, fontSize = 10.sp) })
+                NavigationBarItem(selected = selectedTab == 5, onClick = { selectedTab = 5 }, icon = { Icon(Icons.Default.Person, null) }, label = { Text(if(currentLang=="ar") "ملفي" else "Profile", maxLines = 1, fontSize = 10.sp) })
             }
         }
     ) { padding ->
@@ -158,7 +160,8 @@ fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolea
                 1 -> MyLoansTab(dao, currentLang) { currentInput = LoanInput(assetPrice = it.assetPrice, downPayment = it.downPayment, months = it.months, annualRate = it.annualRate, rateType = it.rateType); selectedTab = 0 }
                 2 -> CompareTab(dao, currentLang)
                 3 -> DebtManagerTab(dao, currentLang)
-                4 -> FinancialProfileTab(financeProfile, currentLang, currentInput) { financeProfile = it }
+                4 -> LiveTrackerTab(dao, currentLang)
+                5 -> FinancialProfileTab(financeProfile, currentLang, currentInput) { financeProfile = it }
             }
         }
     }
