@@ -94,11 +94,12 @@ class MainActivity : ComponentActivity() {
             val configuration = LocalConfiguration.current
             configuration.setLocale(locale)
             val context = LocalContext.current
-            context.resources.updateConfiguration(configuration, context.resources.displayMetrics)
+            val configContext = context.createConfigurationContext(configuration)
 
             CompositionLocalProvider(
                 androidx.compose.ui.platform.LocalLayoutDirection provides if (language == "ar") androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
-                LocalIsDarkTheme provides isDark
+                LocalIsDarkTheme provides isDark,
+                LocalContext provides configContext
             ) {
                 CalcTheme(darkTheme = isDark) { MainScreen(currentLang = language, onLanguageChange = { language = if (language == "en") "ar" else "en" }, isDark = isDark, onThemeToggle = { isDark = !isDark }) }
             }
@@ -152,7 +153,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
     var fedRate by remember { mutableStateOf<LiveRatesEngine.LiveRate?>(null) }
     var cbjRate by remember { mutableStateOf<LiveRatesEngine.LiveRate?>(null) }
     var fetchingRate by remember { mutableStateOf(true) }
-    val coroutineScope = rememberCoroutineScope()
+    // val coroutineScope = rememberCoroutineScope() // removed to prevent unused variable warning
     
     LaunchedEffect(Unit) {
         fetchingRate = true
@@ -936,7 +937,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
         item {
             Spacer(Modifier.height(32.dp))
             var showSaveDialog by remember { mutableStateOf(false) }
-            val coroutineScope = rememberCoroutineScope()
+            val saveCoroutineScope = rememberCoroutineScope()
             
             Button(
                 onClick = { showSaveDialog = true },
@@ -992,7 +993,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                     confirmButton = {
                         Button(onClick = {
                             if (loanName.isNotBlank()) {
-                                coroutineScope.launch {
+                                saveCoroutineScope.launch {
                                     dao.insertLoan(SavedLoan(
                                         name = loanName,
                                         assetPrice = input.assetPrice,
@@ -2111,7 +2112,7 @@ fun ScheduleRow(
 }
 
 @Composable
-fun DetailRow(label: String, value: String, color: Color, isArabic: Boolean) {
+fun DetailRow(label: String, value: String, color: Color) {
     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
         // Value on left
         Text(value, fontSize = 12.sp, color = color, fontWeight = FontWeight.Black)
@@ -2217,7 +2218,7 @@ fun CompareTab(dao: LoanDao, currentLang: String) {
                     Column {
                         SectionHeader(if(currentLang=="ar") "توقعات (أ)" else "Schedule (A)")
                         res1.schedule.forEach { m -> 
-                            CompactScheduleRow(m, formatter, currentLang=="ar")
+                            CompactScheduleRow(m, formatter)
                         }
                     }
                 }
@@ -2225,7 +2226,7 @@ fun CompareTab(dao: LoanDao, currentLang: String) {
                     Column {
                         SectionHeader(if(currentLang=="ar") "توقعات (ب)" else "Schedule (B)")
                         res2.schedule.forEach { m -> 
-                            CompactScheduleRow(m, formatter, currentLang=="ar")
+                            CompactScheduleRow(m, formatter)
                         }
                     }
                 }
@@ -2266,7 +2267,7 @@ fun CompareTab(dao: LoanDao, currentLang: String) {
 }
 
 @Composable
-fun CompactScheduleRow(m: AmortizationMonth, formatter: DecimalFormat, isArabic: Boolean) {
+fun CompactScheduleRow(m: AmortizationMonth, formatter: DecimalFormat) {
     Surface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         shape = RoundedCornerShape(8.dp),

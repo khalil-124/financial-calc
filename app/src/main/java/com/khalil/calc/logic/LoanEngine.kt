@@ -68,7 +68,14 @@ class LoanEngine {
                     }
                     RateType.FLAT, RateType.MURABAHA, RateType.RULE_OF_78 -> {
                         val totalInterest = initialPrincipal * (input.annualRate / 100.0) * (input.months / 12.0)
-                        standardEMI = (initialPrincipal + totalInterest) / n.toInt()
+
+                        // For grace period without capitalization, interest paid during grace should be deducted from total debt
+                        // before distributing over the remaining n months, to calculate standardEMI accurately.
+                        val graceInterest = if (input.graceMonths > 0 && !input.capitalizeGraceInterest && input.rateType == RateType.FLAT) {
+                            (initialPrincipal * (input.annualRate / 100.0) / 12.0) * input.graceMonths
+                        } else 0.0
+
+                        standardEMI = (initialPrincipal + totalInterest - graceInterest) / n.toInt()
                     }
                     RateType.INTEREST_ONLY -> {
                         val balanceAfterGrace = if (input.capitalizeGraceInterest) initialPrincipal * (1 + r).pow(input.graceMonths) else initialPrincipal
@@ -163,7 +170,7 @@ class LoanEngine {
             val totalPrincipalReduction: Double
             val totalPayment: Double
             val openingBalance = currentBalance
-            var totalInterestPaidThisMonth = 0.0
+            val totalInterestPaidThisMonth: Double
 
             if (isRuleOf78) {
                 val activeMonth = m - input.graceMonths
@@ -194,7 +201,7 @@ class LoanEngine {
                 actualEMI = minOf(baseEMI, currentUnifiedDebt)
                 emiPrincipal = actualEMI * ratioP
                 emiInterest = actualEMI * ratioI
-                unpaidInterest = 0.0
+                // unpaidInterest = 0.0 -> Structurally zero
                 
                 val unifiedDebtAfterEMI = currentUnifiedDebt - actualEMI
                 val totalExtraAvailable = extraPaidNow + balloonToday
@@ -221,7 +228,7 @@ class LoanEngine {
                 actualEMI = minOf(baseEMI, currentUnifiedDebt)
                 emiPrincipal = actualEMI * ratioP
                 emiInterest = actualEMI * ratioI
-                unpaidInterest = 0.0
+                // unpaidInterest = 0.0 -> Structurally zero
                 
                 val balanceAfterEMI = (currentBalance - emiPrincipal).coerceAtLeast(0.0)
                 val totalExtraAvailable = extraPaidNow + balloonToday
@@ -328,7 +335,13 @@ class LoanEngine {
                             }
                             input.rateType == RateType.FLAT || input.rateType == RateType.MURABAHA -> {
                                 val currUnifiedDebt = if (ratioP > 0) currentBalance / ratioP else 0.0
+                                // For flat/murabaha, remaining balance calculation assumes EMI distributes equally
                                 standardEMI = currUnifiedDebt / remainingMonths.toDouble()
+
+                                // Reset the expectedMaturityMonth if standardEMI recalculates fully
+                                if (standardEMI > 0) {
+                                    expectedMaturityMonth = m + kotlin.math.ceil(currUnifiedDebt / standardEMI).toInt()
+                                }
                             }
                             input.rateType == RateType.RULE_OF_78 -> {
                                 val remainingInterest = totalFixedInterest - schedule.sumOf { it.interestPart }
@@ -340,9 +353,9 @@ class LoanEngine {
                     if (isMurabaha && standardEMI > 0) {
                         val currDebt = if (ratioP > 0) currentBalance / ratioP else 0.0
                         expectedMaturityMonth = m + kotlin.math.ceil(currDebt / standardEMI).toInt()
-                    } else if (input.rateType == RateType.FLAT && activeRate > 0 && standardEMI > (currentBalance * activeRate)) {
-                        val nExp = kotlin.math.ln(standardEMI / (standardEMI - currentBalance * activeRate)) / kotlin.math.ln(1 + activeRate)
-                        expectedMaturityMonth = m + kotlin.math.ceil(nExp).toInt()
+                    } else if (input.rateType == RateType.FLAT && standardEMI > 0) {
+                        val currDebt = if (ratioP > 0) currentBalance / ratioP else 0.0
+                        expectedMaturityMonth = m + kotlin.math.ceil(currDebt / standardEMI).toInt()
                     } else if (isRuleOf78 && standardEMI > 0) {
                         val remInt = totalFixedInterest - schedule.sumOf { it.interestPart }
                         expectedMaturityMonth = m + kotlin.math.ceil((currentBalance + remInt) / standardEMI).toInt()
@@ -394,7 +407,6 @@ class LoanEngine {
         // 【الخطوة 6】حساب التوفير مقارنة بالقرض العادي (Baseline)
         // القرض المرجعي = نفس المعطيات بدون أي بالونات أو دفعات إضافية
         // ══════════════════════════════════════════════════════════════
-        var baselineInterest = 0.0
         var interestSaved = 0.0
         var monthsSaved = 0
 
@@ -406,7 +418,7 @@ class LoanEngine {
                 balloonPayments = emptyList()
             )
             val baselineResult = calculateInternal(baselineInput, isArabic, true)
-            baselineInterest = baselineResult.totalInterest
+            val baselineInterest = baselineResult.totalInterest
             interestSaved = (baselineInterest - trueTotalInterest).coerceAtLeast(0.0)
             monthsSaved = (baselineResult.schedule.size - schedule.size).coerceAtLeast(0)
 
@@ -430,11 +442,11 @@ class LoanEngine {
             monthsSaved = monthsSaved,
             interestSaved = interestSaved.coerceAtLeast(0.0),
             earlySettlementFeesTotal = totalEarlySettlementFees,
-            insights = if (!isBaseline) generateInsights(input, trueTotalInterest, interestSaved, monthsSaved, initialPrincipal, totalEarlySettlementFees, calculatedNpv, trueTotalPayment, isArabic, emi = initialStandardEMI + monthlyRecurringCost) else emptyList()
+            insights = if (!isBaseline) generateInsights(input, trueTotalInterest, interestSaved, monthsSaved, initialPrincipal, totalEarlySettlementFees, isArabic, profile = null, emi = initialStandardEMI + monthlyRecurringCost) else emptyList()
         )
     }
 
-    private fun generateInsights(input: LoanInput, totalInterest: Double, saved: Double, monthsSaved: Int, principal: Double, totalEarlySettlementFees: Double, npv: Double, totalPayment: Double, isArabic: Boolean, profile: PersonalFinanceProfile? = null, emi: Double = 0.0): List<FinancialInsight> {
+    private fun generateInsights(input: LoanInput, totalInterest: Double, saved: Double, monthsSaved: Int, principal: Double, totalEarlySettlementFees: Double, isArabic: Boolean, profile: PersonalFinanceProfile? = null, emi: Double = 0.0): List<FinancialInsight> {
         val list = mutableListOf<FinancialInsight>()
         
         if (principal > 0) {
@@ -667,7 +679,7 @@ class LoanEngine {
         }
 
         // Generate personalized insights
-        val insights = generateInsights(input, 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0, isArabic, profile, proposedEMI)
+        val insights = generateInsights(input, 0.0, 0.0, 0, 0.0, 0.0, isArabic, profile, proposedEMI)
 
         return AffordabilityResult(
             totalIncome = totalIncome,
