@@ -18,19 +18,39 @@ object PdfGenerator {
         isArabic: Boolean,
         isYearly: Boolean
     ) {
-        val webView = WebView(context)
-        val html = buildHtml(input, result, isArabic, isYearly)
-        
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView?, url: String?) {
-                val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
-                val jobName = if(isArabic) "تقرير_القرض" else "Loan_Report"
-                val printAdapter = webView.createPrintDocumentAdapter(jobName)
-                printManager.print(jobName, printAdapter, PrintAttributes.Builder().build())
+        try {
+            val webView = WebView(context)
+            val html = buildHtml(input, result, isArabic, isYearly)
+            
+            webView.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    try {
+                        val printManager = context.getSystemService(Context.PRINT_SERVICE) as? PrintManager
+                        if (printManager == null) {
+                            android.util.Log.e("PdfGenerator", "PrintManager not available")
+                            return
+                        }
+                        val jobName = if(isArabic) "تقرير_القرض_${System.currentTimeMillis()}" else "Loan_Report_${System.currentTimeMillis()}"
+                        val printAdapter = webView.createPrintDocumentAdapter(jobName)
+                        printManager.print(jobName, printAdapter, PrintAttributes.Builder().build())
+                    } catch (e: Exception) {
+                        android.util.Log.e("PdfGenerator", "Error during print process: ${e.message}")
+                        e.printStackTrace()
+                    }
+                }
+
+                override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
+                    android.util.Log.e("PdfGenerator", "WebView Error: ${error?.description}")
+                }
             }
+            
+            // Ensure loadData is called on the main thread
+            webView.post {
+                webView.loadDataWithBaseURL(null, html, "text/HTML", "UTF-8", null)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("PdfGenerator", "Failed to initialize WebView for PDF: ${e.message}")
         }
-        
-        webView.loadDataWithBaseURL(null, html, "text/HTML", "UTF-8", null)
     }
 
     private fun buildHtml(input: LoanInput, result: CalculationResult, isArabic: Boolean, isYearly: Boolean): String {
