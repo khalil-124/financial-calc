@@ -20,6 +20,9 @@ interface LoanDao {
     @Query("SELECT * FROM active_loans ORDER BY createdAt DESC")
     fun getAllActiveLoans(): Flow<List<ActiveLoan>>
 
+    @Query("SELECT * FROM active_loans ORDER BY createdAt DESC")
+    suspend fun getAllActiveLoansSync(): List<ActiveLoan>
+
     @Insert
     suspend fun insertActiveLoan(loan: ActiveLoan)
 
