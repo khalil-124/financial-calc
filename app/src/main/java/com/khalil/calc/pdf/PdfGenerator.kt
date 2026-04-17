@@ -1,8 +1,6 @@
 package com.khalil.calc.pdf
 
-import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.webkit.WebView
@@ -13,8 +11,6 @@ import java.text.DecimalFormat
 
 object PdfGenerator {
 
-    private var keepsAliveWebView: WebView? = null
-
     fun generateAndPrint(
         context: Context,
         input: LoanInput,
@@ -22,50 +18,20 @@ object PdfGenerator {
         isArabic: Boolean,
         isYearly: Boolean
     ) {
-        try {
-            // Unwrapping Activity context is essential for WebView UI stability
-            var activityContext = context
-            while (activityContext is ContextWrapper && activityContext !is Activity) {
-                activityContext = activityContext.baseContext
-            }
+        val webView = WebView(context)
+        val html = buildHtml(input, result, isArabic, isYearly)
 
-            // Important: Use Activity context for WebView initialization
-            val webView = WebView(activityContext)
-            
-            // Strong reference to prevent GC during the async printing process
-            keepsAliveWebView = webView 
-            
-            val html = buildHtml(input, result, isArabic, isYearly)
-
-            webView.webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    try {
-                        val printManager = activityContext.getSystemService(Context.PRINT_SERVICE) as? PrintManager
-                        if (printManager == null) return
-                        
-                        val jobName = if(isArabic) "تقرير_القرض_${System.currentTimeMillis()}" else "Loan_Report_${System.currentTimeMillis()}"
-                        val printAdapter = webView.createPrintDocumentAdapter(jobName)
-                        val attrs = PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build()
-                        printManager.print(jobName, printAdapter, attrs)
-                    } catch (e: Exception) {
-                        android.util.Log.e("PdfGenerator", "Print error: ${e.message}")
-                    }
-                }
-                
-                override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
-                    android.util.Log.e("PdfGenerator", "WebView Load Error: ${error?.description}")
-                    keepsAliveWebView = null
-                }
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
+                val jobName = if(isArabic) "تقرير_القرض_${System.currentTimeMillis()}" else "Loan_Report_${System.currentTimeMillis()}"
+                val printAdapter = webView.createPrintDocumentAdapter(jobName)
+                val attrs = PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build()
+                printManager.print(jobName, printAdapter, attrs)
             }
-            
-            // Standard loadData call on the UI thread
-            webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
-            
-        } catch (e: Throwable) {
-            // Catching Throwable to capture even non-Exception crashes for logging
-            android.util.Log.e("PdfGenerator", "Immediate Crash: ${e.message}")
-            e.printStackTrace()
         }
+
+        webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
     }
 
     private fun buildHtml(input: LoanInput, result: CalculationResult, isArabic: Boolean, isYearly: Boolean): String {

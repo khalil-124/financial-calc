@@ -73,6 +73,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 
 val LocalIsDarkTheme = compositionLocalOf { false }
+val LocalActivity = staticCompositionLocalOf<ComponentActivity> { error("No Activity provided") }
 
 object CalcColors {
     val RoyalBlue = Color(0xFF003366) 
@@ -117,7 +118,8 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(
                 androidx.compose.ui.platform.LocalLayoutDirection provides if (language == "ar") androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
                 LocalIsDarkTheme provides isDark,
-                LocalContext provides configContext
+                LocalContext provides configContext,
+                LocalActivity provides this@MainActivity
             ) {
                 CalcTheme(darkTheme = isDark) { MainScreen(currentLang = language, onLanguageChange = { language = if (language == "en") "ar" else "en" }, isDark = isDark, onThemeToggle = { isDark = !isDark }) }
             }
@@ -1002,7 +1004,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
             }
             
             Spacer(Modifier.height(16.dp))
-            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val ctx = LocalActivity.current as android.content.Context
             Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = { com.khalil.calc.pdf.PdfGenerator.generateAndPrint(ctx, input, result, currentLang == "ar", isYearly = false) },
