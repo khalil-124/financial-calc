@@ -23,63 +23,25 @@ object PdfGenerator {
         isYearly: Boolean
     ) {
         try {
-            var activityContext = context
-            while (activityContext is ContextWrapper && activityContext !is Activity) {
-                activityContext = activityContext.baseContext
-            }
-
-            // Show feedback to user
-            val startMsg = if(isArabic) "جاري تجهيز التقرير..." else "Preparing report..."
-            android.widget.Toast.makeText(activityContext, startMsg, android.widget.Toast.LENGTH_SHORT).show()
-
-            val webView = WebView(activityContext)
-            keepsAliveWebView = webView // Hold reference to prevent GC
-            
+            val webView = WebView(context)
             val html = buildHtml(input, result, isArabic, isYearly)
-            
-            // Explicitly force WebView to measure & layout to bypass some manufacturers' background optimization.
-            webView.layout(0, 0, 1000, 1000)
-            
+
             webView.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    try {
-                        // Debug toast to verify onPageFinished is hit
-                        val readyMsg = if(isArabic) "جاري إرسال التقرير للطباعة..." else "Sending report to printer..."
-                        android.widget.Toast.makeText(activityContext, readyMsg, android.widget.Toast.LENGTH_SHORT).show()
-                        
-                        val printManager = activityContext.getSystemService(Context.PRINT_SERVICE) as? PrintManager
-                        if (printManager == null) {
-                            android.util.Log.e("PdfGenerator", "PrintManager not available")
-                            android.widget.Toast.makeText(activityContext, "Print service not available", android.widget.Toast.LENGTH_LONG).show()
-                            return
-                        }
-                        val jobName = if(isArabic) "تقرير_القرض_${System.currentTimeMillis()}" else "Loan_Report_${System.currentTimeMillis()}"
-                        val printAdapter = webView.createPrintDocumentAdapter(jobName)
-                        printManager.print(jobName, printAdapter, PrintAttributes.Builder().build())
-                    } catch (e: Exception) {
-                        android.util.Log.e("PdfGenerator", "Error during print process: ${e.message}")
-                        val errorMsg = if(isArabic) "خطأ في عملية الطباعة" else "Print process error"
-                        android.widget.Toast.makeText(activityContext, errorMsg, android.widget.Toast.LENGTH_LONG).show()
-                    }
-                }
-
-                override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
-                    android.util.Log.e("PdfGenerator", "WebView Error: ${error?.description}")
-                    val errorMsg = if(isArabic) "فشل تحميل البيانات" else "Data load failed"
-                    android.widget.Toast.makeText(activityContext, errorMsg, android.widget.Toast.LENGTH_LONG).show()
-                    keepsAliveWebView = null
+                    val printManager = context.getSystemService(Context.PRINT_SERVICE) as? PrintManager
+                    if (printManager == null) return
+                    
+                    val jobName = if(isArabic) "تقرير_القرض_${System.currentTimeMillis()}" else "Loan_Report_${System.currentTimeMillis()}"
+                    val printAdapter = webView.createPrintDocumentAdapter(jobName)
+                    val attrs = PrintAttributes.Builder().setMediaSize(PrintAttributes.MediaSize.ISO_A4).build()
+                    printManager.print(jobName, printAdapter, attrs)
                 }
             }
             
-            // Ensure loadData is called on the main thread
-            webView.post {
-                webView.loadDataWithBaseURL("about:blank", html, "text/html", "utf-8", null)
-            }
+            webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+            
         } catch (e: Exception) {
-            android.util.Log.e("PdfGenerator", "Failed to initialize WebView for PDF: ${e.message}")
-            val failMsg = if(isArabic) "عفواً، تعذر فتح محرك الطباعة" else "Sorry, failed to open print engine"
-            android.widget.Toast.makeText(context, failMsg, android.widget.Toast.LENGTH_LONG).show()
-            keepsAliveWebView = null
+            android.util.Log.e("PdfGenerator", "Failed to print: ${e.message}")
         }
     }
 
