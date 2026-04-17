@@ -1,0 +1,31 @@
+version: "2"
+type: frontend
+tech_stack:
+  - Kotlin
+  - Jetpack Compose
+  - Material 3
+  - Room (SQLite)
+  - Gradle 8.13
+  - PDF Generation (Android Printing)
+features:
+  - name: Advanced Loan Engine
+    description: Core logic for calculating monthly EMI, interest, and amortization for multiple loan types (Reducing, Flat, Murabaha, Rule of 78).
+    files:
+      - app/src/main/java/com/khalil/calc/logic/LoanEngine.kt
+      - app/src/main/java/com/khalil/calc/logic/LoanModels.kt
+  - name: Interactive Financial UI
+    description: Modern dashboard with pie charts, rate shock simulators, and tabbed navigation.
+    files:
+      - app/src/main/java/com/khalil/calc/ui/MainActivity.kt
+  - name: Live Rate Integration
+    description: Fetches real-time interest rates from US Fed and Central Bank of Jordan to assist users in calculations.
+    files:
+      - app/src/main/java/com/khalil/calc/logic/LiveRatesEngine.kt
+  - name: PDF Reporting
+    description: Generates professional-grade PDF amortization schedules for export and printing.
+    files:
+      - app/src/main/java/com/khalil/calc/pdf/PdfGenerator.kt
+known_limitations:
+  - issue: Unsupported class file major version 69 (Java 25 mismatch with Gradle/Android toolchain)
+    location: Root (Build environment)
+    impact: Project cannot be built or tested locally using standard gradle commands in the current environment
