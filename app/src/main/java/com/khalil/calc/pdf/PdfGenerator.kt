@@ -11,6 +11,8 @@ import java.text.DecimalFormat
 
 object PdfGenerator {
 
+    private var keepsAliveWebView: WebView? = null
+
     fun generateAndPrint(
         context: Context,
         input: LoanInput,
@@ -19,7 +21,13 @@ object PdfGenerator {
         isYearly: Boolean
     ) {
         try {
+            // Show feedback to user
+            val startMsg = if(isArabic) "جاري تجهيز التقرير..." else "Preparing report..."
+            android.widget.Toast.makeText(context, startMsg, android.widget.Toast.LENGTH_SHORT).show()
+
             val webView = WebView(context)
+            keepsAliveWebView = webView // Hold reference to prevent GC
+            
             val html = buildHtml(input, result, isArabic, isYearly)
             
             webView.webViewClient = object : WebViewClient() {
@@ -33,14 +41,24 @@ object PdfGenerator {
                         val jobName = if(isArabic) "تقرير_القرض_${System.currentTimeMillis()}" else "Loan_Report_${System.currentTimeMillis()}"
                         val printAdapter = webView.createPrintDocumentAdapter(jobName)
                         printManager.print(jobName, printAdapter, PrintAttributes.Builder().build())
+                        
+                        // Process finished, can release reference later
+                        // For now we keep it until the print dialog takes over
                     } catch (e: Exception) {
                         android.util.Log.e("PdfGenerator", "Error during print process: ${e.message}")
-                        e.printStackTrace()
+                        val errorMsg = if(isArabic) "خطأ في عملية الطباعة" else "Print process error"
+                        android.widget.Toast.makeText(context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
+                    } finally {
+                        // Optional: Clear reference after some delay or if you have a way to know it's done
+                        // keepsAliveWebView = null
                     }
                 }
 
                 override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
                     android.util.Log.e("PdfGenerator", "WebView Error: ${error?.description}")
+                    val errorMsg = if(isArabic) "فشل تحميل البيانات" else "Data load failed"
+                    android.widget.Toast.makeText(context, errorMsg, android.widget.Toast.LENGTH_LONG).show()
+                    keepsAliveWebView = null
                 }
             }
             
@@ -50,6 +68,9 @@ object PdfGenerator {
             }
         } catch (e: Exception) {
             android.util.Log.e("PdfGenerator", "Failed to initialize WebView for PDF: ${e.message}")
+            val failMsg = if(isArabic) "عفواً، تعذر فتح محرك الطباعة" else "Sorry, failed to open print engine"
+            android.widget.Toast.makeText(context, failMsg, android.widget.Toast.LENGTH_LONG).show()
+            keepsAliveWebView = null
         }
     }
 
