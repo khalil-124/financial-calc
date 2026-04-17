@@ -148,7 +148,7 @@ fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolea
         Box(modifier = Modifier.fillMaxSize().background(CalcColors.background()).padding(padding)) {
             when (selectedTab) {
                 0 -> CalculatorTab(currentInput, currentLang, onLanguageChange, { viewModel.updateInput(it) }, dao, isDark, onThemeToggle, financeProfile, viewModel)
-                1 -> MyLoansTab(dao, currentLang) { viewModel.updateInput(LoanInput(assetPrice = it.assetPrice, downPayment = it.downPayment, months = it.months, annualRate = it.annualRate, rateType = it.rateType)); selectedTab = 0 }
+                1 -> MyLoansTab(dao, currentLang, viewModel) { viewModel.updateInput(LoanInput(assetPrice = it.assetPrice, downPayment = it.downPayment, months = it.months, annualRate = it.annualRate, rateType = it.rateType)); selectedTab = 0 }
                 2 -> CompareTab(dao, currentLang)
                 3 -> FinancialProfileTab(financeProfile, currentLang, currentInput) { financeProfile = it }
             }
@@ -1311,22 +1311,8 @@ fun ScheduleTable(schedule: List<AmortizationMonth>, formatter: DecimalFormat, i
         }
         
         Spacer(Modifier.height(20.dp))
-        
-        // Button(
-        //     onClick = { com.khalil.calc.pdf.PdfGenerator.generateAndPrint(context, input, result, isArabic, isYearly = false) },
-        //     modifier = Modifier.fillMaxWidth().height(50.dp),
-        //     shape = RoundedCornerShape(12.dp),
-        //     colors = ButtonDefaults.buttonColors(containerColor = CalcColors.accent())
-        // ) {
-        //     Icon(Icons.Default.PictureAsPdf, contentDescription = null)
-        //     Spacer(Modifier.width(8.dp))
-        //     Text(if(isArabic) "تقرير PDF شامل" else "Generate Comprehensive PDF", fontWeight = FontWeight.Bold)
-        // }
     }
 }
-
-// Function exportScheduleToPdf removed.
-// It is fully superseded by PdfGenerator.generateAndPrint
 
 @Composable
 fun LoanHealthGauge(ratio: Double, isArabic: Boolean) {
@@ -1375,7 +1361,7 @@ fun LoanAmortizationChart(schedule: List<AmortizationMonth>, isArabic: Boolean) 
         SectionHeader(if (isArabic) "مسار إطفاء القرض (Amortization)" else "Loan Amortization Path")
         Spacer(Modifier.height(8.dp))
 
-        val maxBalance = schedule.first().openingBalance
+        val maxBalance = schedule.firstOrNull()?.openingBalance ?: 0.0
         var totalInterestAmount = 0f
         schedule.forEach { totalInterestAmount += it.interestPart.toFloat() }
 
@@ -1405,7 +1391,7 @@ fun LoanAmortizationChart(schedule: List<AmortizationMonth>, isArabic: Boolean) 
             .axisStepSize(40.dp)
             .backgroundColor(Color.Transparent)
             .steps(schedule.size)
-            .labelData { i -> if (i % 12 == 0 && i > 0) "${i / 12}Y" else "" }
+            .labelData { i -> if (i % 12 == 0 && i > 0) "${i / 12}${if (isArabic) "س" else "Y"}" else "" }
             .labelAndAxisLinePadding(15.dp)
             .axisLineColor(CalcColors.border())
             .axisLabelColor(CalcColors.textMuted())
@@ -1612,23 +1598,75 @@ fun SectionHeader(t: String, light: Boolean = false) {
 }
 
 @Composable
-fun MyLoansTab(dao: LoanDao, currentLang: String, onLoad: (SavedLoan) -> Unit) {
+fun MyLoansTab(dao: LoanDao, currentLang: String, viewModel: LoanViewModel, onLoad: (SavedLoan) -> Unit) {
     val loans by dao.getAllLoans().collectAsState(initial = emptyList())
     var selectedForCompare by remember { mutableStateOf(setOf<SavedLoan>()) }
     var showCompareDialog by remember { mutableStateOf(false) }
     var refinanceTarget by remember { mutableStateOf<SavedLoan?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
+    val syncStatus by viewModel.cloudSyncService.syncStatus.collectAsState()
+
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 100.dp, top = 20.dp, start = 20.dp, end = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
-                Text(
-                    text = if(currentLang=="ar") "محفظة القروض" else "Loan Portfolio",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Black,
-                    color = CalcColors.textPrimary(),
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
+                Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if(currentLang=="ar") "محفظة القروض" else "Loan Portfolio",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black,
+                        color = CalcColors.textPrimary()
+                    )
+
+                    // Cloud Sync Component
+                    Surface(
+                        color = when(syncStatus) {
+                            SyncStatus.SUCCESS -> Color(0xFFE8F5E9)
+                            SyncStatus.SYNCING -> Color(0xFFFFF3E0)
+                            else -> CalcColors.surface()
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, CalcColors.border()),
+                        modifier = Modifier.clickable {
+                            coroutineScope.launch {
+                                if (syncStatus == SyncStatus.DISABLED) {
+                                    viewModel.cloudSyncService.enableCloudSync(true)
+                                }
+                                viewModel.cloudSyncService.syncLoansToCloud(loans)
+                            }
+                        }
+                    ) {
+                        Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = when(syncStatus) {
+                                    SyncStatus.SUCCESS -> Icons.Default.CloudDone
+                                    SyncStatus.SYNCING -> Icons.Default.CloudUpload
+                                    SyncStatus.DISABLED -> Icons.Default.CloudOff
+                                    else -> Icons.Default.CloudQueue
+                                },
+                                contentDescription = "Cloud Sync",
+                                tint = when(syncStatus) {
+                                    SyncStatus.SUCCESS -> Color(0xFF2E7D32)
+                                    SyncStatus.SYNCING -> Color(0xFFEF6C00)
+                                    else -> CalcColors.textMuted()
+                                },
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = when(syncStatus) {
+                                    SyncStatus.SUCCESS -> if(currentLang=="ar") "مُتزامن" else "Synced"
+                                    SyncStatus.SYNCING -> if(currentLang=="ar") "جاري الرفع.." else "Syncing.."
+                                    SyncStatus.DISABLED -> if(currentLang=="ar") "تفعيل السحابة" else "Enable Sync"
+                                    else -> if(currentLang=="ar") "نسخ احتياطي" else "Backup"
+                                },
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = CalcColors.textPrimary()
+                            )
+                        }
+                    }
+                }
             }
             if (loans.isEmpty()) {
                 item {

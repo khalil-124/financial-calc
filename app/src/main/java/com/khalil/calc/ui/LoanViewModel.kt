@@ -29,6 +29,9 @@ class LoanViewModel : ViewModel() {
     private val _resultEnglish = MutableStateFlow<CalculationResult?>(null)
     val resultEnglish: StateFlow<CalculationResult?> = _resultEnglish.asStateFlow()
 
+    // Cloud Sync Feature
+    val cloudSyncService: CloudSyncService = MockCloudSyncServiceImpl()
+
     init {
         recalculate()
     }
