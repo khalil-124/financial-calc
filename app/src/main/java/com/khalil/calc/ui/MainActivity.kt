@@ -140,11 +140,11 @@ fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolea
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = CalcColors.surface()) {
-                NavigationBarItem(selected = selectedTab == 0, onClick = { selectedTab = 0 }, icon = { Icon(Icons.Default.Calculate, null) }, label = { Text(if(currentLang=="ar") "الحاسبة" else "Calc", maxLines = 1, fontSize = 10.sp) })
-                NavigationBarItem(selected = selectedTab == 1, onClick = { selectedTab = 1 }, icon = { Icon(Icons.Default.AccountBalanceWallet, null) }, label = { Text(if(currentLang=="ar") "محفظتي" else "Portfolio", maxLines = 1, fontSize = 10.sp) })
-                NavigationBarItem(selected = selectedTab == 2, onClick = { selectedTab = 2 }, icon = { Icon(Icons.Default.CompareArrows, null) }, label = { Text(if(currentLang=="ar") "مقارنة" else "Compare", maxLines = 1, fontSize = 10.sp) })
-                NavigationBarItem(selected = selectedTab == 3, onClick = { selectedTab = 3 }, icon = { Icon(Icons.Default.Person, null) }, label = { Text(if(currentLang=="ar") "ملفي" else "Profile", maxLines = 1, fontSize = 10.sp) })
-                NavigationBarItem(selected = selectedTab == 4, onClick = { selectedTab = 4 }, icon = { Icon(Icons.Default.TrackChanges, null) }, label = { Text(if(currentLang=="ar") "الحالي" else "Live", maxLines = 1, fontSize = 10.sp) })
+                NavigationBarItem(selected = selectedTab == 0, onClick = { selectedTab = 0 }, alwaysShowLabel = true, icon = { Icon(Icons.Default.Calculate, null) }, label = { Text(if(currentLang=="ar") "الحاسبة" else "Calc", maxLines = 1, fontSize = 9.sp) })
+                NavigationBarItem(selected = selectedTab == 4, onClick = { selectedTab = 4 }, alwaysShowLabel = true, icon = { Icon(Icons.Default.TrackChanges, null) }, label = { Text(if(currentLang=="ar") "الحالي" else "Live", maxLines = 1, fontSize = 9.sp) })
+                NavigationBarItem(selected = selectedTab == 1, onClick = { selectedTab = 1 }, alwaysShowLabel = true, icon = { Icon(Icons.Default.AccountBalanceWallet, null) }, label = { Text(if(currentLang=="ar") "محفظتي" else "Portfolio", maxLines = 1, fontSize = 9.sp) })
+                NavigationBarItem(selected = selectedTab == 2, onClick = { selectedTab = 2 }, alwaysShowLabel = true, icon = { Icon(Icons.Default.CompareArrows, null) }, label = { Text(if(currentLang=="ar") "مقارنة" else "Compare", maxLines = 1, fontSize = 9.sp) })
+                NavigationBarItem(selected = selectedTab == 3, onClick = { selectedTab = 3 }, alwaysShowLabel = true, icon = { Icon(Icons.Default.Person, null) }, label = { Text(if(currentLang=="ar") "ملفي" else "Profile", maxLines = 1, fontSize = 9.sp) })
             }
         }
     ) { padding ->
@@ -345,25 +345,12 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                     }
                 }
                 
-                var isExistingLoan by remember { mutableStateOf(false) }
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(if(currentLang=="ar") "إكمال قرض حالي/موجود؟" else "Continue Existing Loan?", color = CalcColors.textPrimary(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Switch(
-                        checked = isExistingLoan, 
-                        onCheckedChange = { isExistingLoan = it; if(it) onInputChanged(input.copy(downPayment = 0.0)) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = CalcColors.accent())
-                    )
-                }
-
                 InField(
-                    if(isExistingLoan) (if(currentLang=="ar") "الرصيد المتبقي حالياً" else "Current Remaining Balance") 
-                    else (if(currentLang=="ar") "سعر الأصل الإجمالي" else "Total Asset Price"), 
+                    if(currentLang=="ar") "سعر الأصل الإجمالي" else "Total Asset Price",
                     input.assetPrice
                 ) { onInputChanged(input.copy(assetPrice = it)) }
                 
-                if (!isExistingLoan) {
-                    InField(if(currentLang=="ar") "الدفعة الأولى" else "Down Payment", input.downPayment) { onInputChanged(input.copy(downPayment = it)) }
-                }
+                InField(if(currentLang=="ar") "الدفعة الأولى" else "Down Payment", input.downPayment) { onInputChanged(input.copy(downPayment = it)) }
                 
                 
                 var showRateInfoDialog by remember { mutableStateOf(false) }
@@ -432,8 +419,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                 InField(if(currentLang=="ar") "نسبة الفائدة السنوية (%)" else "Annual Interest Rate (%)", input.annualRate) { onInputChanged(input.copy(annualRate = it)) }
                 
                 InField(
-                    if(isExistingLoan) (if(currentLang=="ar") "الأشهر المتبقية" else "Remaining Months") 
-                    else (if(currentLang=="ar") "مدة القرض (بالأشهر)" else "Loan Term (Months)"), 
+                    if(currentLang=="ar") "مدة القرض (بالأشهر)" else "Loan Term (Months)",
                     input.months.toDouble()
                 ) { onInputChanged(input.copy(months = it.toInt())) }
                 
