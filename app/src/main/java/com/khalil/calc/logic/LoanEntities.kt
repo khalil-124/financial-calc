@@ -21,10 +21,16 @@ data class SavedLoan(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+enum class LoanCategory {
+    PERSONAL, AUTO, MORTGAGE, OTHER
+}
+
 @Entity(tableName = "active_loans")
 data class ActiveLoan(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
+    val loanCategory: LoanCategory = LoanCategory.PERSONAL,
+    val currentEMI: Double = 0.0,
     val OriginalAssetPrice: Double,
     val OriginalDownPayment: Double,
     val OriginalMonths: Int,
@@ -49,4 +55,10 @@ class Converters {
 
     @TypeConverter
     fun toExtraPaymentStrategy(value: String): ExtraPaymentStrategy = ExtraPaymentStrategy.valueOf(value)
+
+    @TypeConverter
+    fun fromLoanCategory(value: LoanCategory): String = value.name
+
+    @TypeConverter
+    fun toLoanCategory(value: String): LoanCategory = LoanCategory.valueOf(value)
 }

@@ -802,12 +802,31 @@ class LoanEngine {
 
         val remainingMonths = (activeLoan.OriginalMonths - pastPaidMonths).coerceAtLeast(1)
         
+        // Calculate theoretical EMI based on Original details
+        val theoreticalInput = LoanInput(
+            assetPrice = activeLoan.OriginalAssetPrice,
+            downPayment = activeLoan.OriginalDownPayment,
+            months = activeLoan.OriginalMonths,
+            annualRate = activeLoan.OriginalAnnualRate,
+            rateType = activeLoan.rateType
+        )
+        val theoreticalResult = calculate(theoreticalInput, isArabic)
+        val theoreticalEMI = theoreticalResult.monthlyEMI
+
+        // Determine monthly insurance/fees if actual EMI > theoretical EMI
+        val additionalMonthlyInsurance = if (activeLoan.currentEMI > theoreticalEMI) {
+            activeLoan.currentEMI - theoreticalEMI
+        } else {
+            0.0
+        }
+
         val liveInput = LoanInput(
             assetPrice = activeLoan.currentBalanceOverride,
             downPayment = 0.0,
             months = remainingMonths,
             annualRate = activeLoan.currentActiveRate,
-            rateType = activeLoan.rateType
+            rateType = activeLoan.rateType,
+            monthlyInsurance = additionalMonthlyInsurance // Pass the difference here to adjust the EMI upwards
         )
         
         val futureResult = calculate(liveInput, isArabic)

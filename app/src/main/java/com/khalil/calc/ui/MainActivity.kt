@@ -144,6 +144,7 @@ fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolea
                 NavigationBarItem(selected = selectedTab == 1, onClick = { selectedTab = 1 }, icon = { Icon(Icons.Default.AccountBalanceWallet, null) }, label = { Text(if(currentLang=="ar") "محفظتي" else "Portfolio", maxLines = 1, fontSize = 10.sp) })
                 NavigationBarItem(selected = selectedTab == 2, onClick = { selectedTab = 2 }, icon = { Icon(Icons.Default.CompareArrows, null) }, label = { Text(if(currentLang=="ar") "مقارنة" else "Compare", maxLines = 1, fontSize = 10.sp) })
                 NavigationBarItem(selected = selectedTab == 3, onClick = { selectedTab = 3 }, icon = { Icon(Icons.Default.Person, null) }, label = { Text(if(currentLang=="ar") "ملفي" else "Profile", maxLines = 1, fontSize = 10.sp) })
+                NavigationBarItem(selected = selectedTab == 4, onClick = { selectedTab = 4 }, icon = { Icon(Icons.Default.TrackChanges, null) }, label = { Text(if(currentLang=="ar") "الحالي" else "Live", maxLines = 1, fontSize = 10.sp) })
             }
         }
     ) { padding ->
@@ -153,6 +154,7 @@ fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolea
                 1 -> MyLoansTab(dao, currentLang) { viewModel.updateInput(LoanInput(assetPrice = it.assetPrice, downPayment = it.downPayment, months = it.months, annualRate = it.annualRate, rateType = it.rateType)); selectedTab = 0 }
                 2 -> CompareTab(dao, currentLang)
                 3 -> FinancialProfileTab(financeProfile, currentLang, currentInput) { financeProfile = it }
+                4 -> LiveTrackerTab(dao, currentLang)
             }
         }
     }
