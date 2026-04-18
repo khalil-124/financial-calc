@@ -5,12 +5,17 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -151,7 +156,6 @@ fun AddLiveLoanDialog(isArabic: Boolean, onDismiss: () -> Unit, onSave: (ActiveL
     var category by remember { mutableStateOf<LoanCategory>(LoanCategory.PERSONAL) }
     var rateType by remember { mutableStateOf(RateType.REDUCING) }
 
-    var categoryExpanded by remember { mutableStateOf(false) }
     var rateTypeExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -161,17 +165,28 @@ fun AddLiveLoanDialog(isArabic: Boolean, onDismiss: () -> Unit, onSave: (ActiveL
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(if(isArabic) "اسم القرض (مثال: شقة)" else "Loan Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
-                ExposedDropdownMenuBox(expanded = categoryExpanded, onExpandedChange = { categoryExpanded = it }) {
-                    OutlinedTextField(
-                        value = when(category) { LoanCategory.PERSONAL -> if(isArabic) "شخصي" else "Personal"; LoanCategory.AUTO -> if(isArabic) "سيارة" else "Auto"; LoanCategory.MORTGAGE -> if(isArabic) "عقاري" else "Mortgage"; LoanCategory.OTHER -> if(isArabic) "آخر" else "Other" },
-                        onValueChange = {}, readOnly = true, label = { Text(if(isArabic) "نوع القرض" else "Loan Type") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth()
+                Text(if(isArabic) "نوع القرض" else "Loan Type", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CalcColors.textPrimary())
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    val categories = listOf(
+                        Triple(LoanCategory.PERSONAL, if(isArabic) "شخصي" else "Personal", Icons.Default.Person),
+                        Triple(LoanCategory.AUTO, if(isArabic) "سيارة" else "Auto", Icons.Default.DirectionsCar),
+                        Triple(LoanCategory.MORTGAGE, if(isArabic) "عقاري" else "Mortgage", Icons.Default.Home),
+                        Triple(LoanCategory.OTHER, if(isArabic) "آخر" else "Other", Icons.Default.MoreHoriz)
                     )
-                    ExposedDropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
-                        DropdownMenuItem(text = { Text(if(isArabic) "شخصي" else "Personal") }, onClick = { category = LoanCategory.PERSONAL; categoryExpanded = false })
-                        DropdownMenuItem(text = { Text(if(isArabic) "سيارة" else "Auto") }, onClick = { category = LoanCategory.AUTO; categoryExpanded = false })
-                        DropdownMenuItem(text = { Text(if(isArabic) "عقاري" else "Mortgage") }, onClick = { category = LoanCategory.MORTGAGE; categoryExpanded = false })
-                        DropdownMenuItem(text = { Text(if(isArabic) "آخر" else "Other") }, onClick = { category = LoanCategory.OTHER; categoryExpanded = false })
+                    categories.forEach { (cat, label, icon) ->
+                        val isSelected = category == cat
+                        Surface(
+                            modifier = Modifier.weight(1f).padding(2.dp).clickable { category = cat },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if(isSelected) CalcColors.accent() else CalcColors.surface(),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if(isSelected) CalcColors.accent() else Color.Gray.copy(alpha = 0.5f))
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
+                                Icon(icon, contentDescription = label, tint = if(isSelected) Color.White else CalcColors.textMuted())
+                                Spacer(Modifier.height(4.dp))
+                                Text(label, fontSize = 10.sp, color = if(isSelected) Color.White else CalcColors.textMuted(), maxLines = 1)
+                            }
+                        }
                     }
                 }
 
