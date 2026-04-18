@@ -5,17 +5,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,7 +34,7 @@ fun LiveTrackerTab(dao: LoanDao, currentLang: String) {
     val coroutineScope = rememberCoroutineScope()
     val loansList by dao.getAllActiveLoans().collectAsState(initial = emptyList())
     var showAddDialog by remember { mutableStateOf(false) }
-    
+
     val engine = remember { LoanEngine() }
     val isArabic = currentLang == "ar"
     val formatter = DecimalFormat("#,##0.00")
@@ -63,7 +58,7 @@ fun LiveTrackerTab(dao: LoanDao, currentLang: String) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 items(loansList) { activeLoan ->
                     val liveResult = engine.calculateLiveAmortization(activeLoan, isArabic)
-                    
+
                     PremiumCard(gradient = false) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(activeLoan.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = CalcColors.textPrimary())
@@ -81,7 +76,7 @@ fun LiveTrackerTab(dao: LoanDao, currentLang: String) {
                             }, fontSize = 12.sp, color = CalcColors.accent()
                         )
                         Spacer(Modifier.height(12.dp))
-                        
+
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                             Column {
                                 Text(if (isArabic) "الرصيد الفعلي الحالي" else "Current Act. Balance", fontSize = 12.sp, color = CalcColors.textMuted())
@@ -94,7 +89,7 @@ fun LiveTrackerTab(dao: LoanDao, currentLang: String) {
                         }
 
                         Spacer(Modifier.height(16.dp))
-                        
+
                         // Progress Bar
                         Text(if (isArabic) "نسبة الإنجاز الخارقة" else "Crusher Progress", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CalcColors.accent())
                         LinearProgressIndicator(
@@ -106,7 +101,7 @@ fun LiveTrackerTab(dao: LoanDao, currentLang: String) {
                         Text("${String.format("%.1f", liveResult.progressPercentage)}% ${if(isArabic) "انتهى من الرحلة!" else "Completed!"}", fontSize = 10.sp, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.End))
 
                         Spacer(Modifier.height(16.dp))
-                        
+
                         // Live Insight Notification
                         liveResult.proactiveInsight?.let { insight ->
                             Surface(
@@ -156,6 +151,7 @@ fun AddLiveLoanDialog(isArabic: Boolean, onDismiss: () -> Unit, onSave: (ActiveL
     var category by remember { mutableStateOf<LoanCategory>(LoanCategory.PERSONAL) }
     var rateType by remember { mutableStateOf(RateType.REDUCING) }
 
+    var categoryExpanded by remember { mutableStateOf(false) }
     var rateTypeExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
