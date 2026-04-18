@@ -141,20 +141,22 @@ fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolea
         bottomBar = {
             NavigationBar(containerColor = CalcColors.surface()) {
                 NavigationBarItem(selected = selectedTab == 0, onClick = { selectedTab = 0 }, icon = { Icon(Icons.Default.Calculate, null) }, label = { Text(if(currentLang=="ar") "الحاسبة" else "Calc", maxLines = 1, fontSize = 10.sp) })
-                NavigationBarItem(selected = selectedTab == 1, onClick = { selectedTab = 1 }, icon = { Icon(Icons.Default.AccountBalanceWallet, null) }, label = { Text(if(currentLang=="ar") "محفظتي" else "Portfolio", maxLines = 1, fontSize = 10.sp) })
-                NavigationBarItem(selected = selectedTab == 2, onClick = { selectedTab = 2 }, icon = { Icon(Icons.Default.CompareArrows, null) }, label = { Text(if(currentLang=="ar") "مقارنة" else "Compare", maxLines = 1, fontSize = 10.sp) })
-                NavigationBarItem(selected = selectedTab == 3, onClick = { selectedTab = 3 }, icon = { Icon(Icons.Default.Person, null) }, label = { Text(if(currentLang=="ar") "ملفي" else "Profile", maxLines = 1, fontSize = 10.sp) })
-                NavigationBarItem(selected = selectedTab == 4, onClick = { selectedTab = 4 }, icon = { Icon(Icons.Default.TrackChanges, null) }, label = { Text(if(currentLang=="ar") "الحالي" else "Live", maxLines = 1, fontSize = 10.sp) })
+                NavigationBarItem(selected = selectedTab == 1, onClick = { selectedTab = 1 }, icon = { Icon(Icons.Default.Autorenew, null) }, label = { Text(if(currentLang=="ar") "إكمال قرض" else "Continue", maxLines = 1, fontSize = 10.sp) })
+                NavigationBarItem(selected = selectedTab == 2, onClick = { selectedTab = 2 }, icon = { Icon(Icons.Default.AccountBalanceWallet, null) }, label = { Text(if(currentLang=="ar") "محفظتي" else "Portfolio", maxLines = 1, fontSize = 10.sp) })
+                NavigationBarItem(selected = selectedTab == 3, onClick = { selectedTab = 3 }, icon = { Icon(Icons.Default.CompareArrows, null) }, label = { Text(if(currentLang=="ar") "مقارنة" else "Compare", maxLines = 1, fontSize = 10.sp) })
+                NavigationBarItem(selected = selectedTab == 4, onClick = { selectedTab = 4 }, icon = { Icon(Icons.Default.Person, null) }, label = { Text(if(currentLang=="ar") "ملفي" else "Profile", maxLines = 1, fontSize = 10.sp) })
+                NavigationBarItem(selected = selectedTab == 5, onClick = { selectedTab = 5 }, icon = { Icon(Icons.Default.TrackChanges, null) }, label = { Text(if(currentLang=="ar") "الحالي" else "Live", maxLines = 1, fontSize = 10.sp) })
             }
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().background(CalcColors.background()).padding(padding)) {
             when (selectedTab) {
                 0 -> CalculatorTab(currentInput, currentLang, onLanguageChange, { viewModel.updateInput(it) }, dao, isDark, onThemeToggle, financeProfile, viewModel)
-                1 -> MyLoansTab(dao, currentLang) { viewModel.updateInput(LoanInput(assetPrice = it.assetPrice, downPayment = it.downPayment, months = it.months, annualRate = it.annualRate, rateType = it.rateType)); selectedTab = 0 }
-                2 -> CompareTab(dao, currentLang)
-                3 -> FinancialProfileTab(financeProfile, currentLang, currentInput) { financeProfile = it }
-                4 -> LiveTrackerTab(dao, currentLang)
+                1 -> ContinueLoanTab(currentLang)
+                2 -> MyLoansTab(dao, currentLang) { viewModel.updateInput(LoanInput(assetPrice = it.assetPrice, downPayment = it.downPayment, months = it.months, annualRate = it.annualRate, rateType = it.rateType)); selectedTab = 0 }
+                3 -> CompareTab(dao, currentLang)
+                4 -> FinancialProfileTab(financeProfile, currentLang, currentInput) { financeProfile = it }
+                5 -> LiveTrackerTab(dao, currentLang)
             }
         }
     }
@@ -345,25 +347,12 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                     }
                 }
                 
-                var isExistingLoan by remember { mutableStateOf(false) }
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(if(currentLang=="ar") "إكمال قرض حالي/موجود؟" else "Continue Existing Loan?", color = CalcColors.textPrimary(), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Switch(
-                        checked = isExistingLoan, 
-                        onCheckedChange = { isExistingLoan = it; if(it) onInputChanged(input.copy(downPayment = 0.0)) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = CalcColors.accent())
-                    )
-                }
-
                 InField(
-                    if(isExistingLoan) (if(currentLang=="ar") "الرصيد المتبقي حالياً" else "Current Remaining Balance") 
-                    else (if(currentLang=="ar") "سعر الأصل الإجمالي" else "Total Asset Price"), 
+                    if(currentLang=="ar") "سعر الأصل الإجمالي" else "Total Asset Price",
                     input.assetPrice
                 ) { onInputChanged(input.copy(assetPrice = it)) }
                 
-                if (!isExistingLoan) {
-                    InField(if(currentLang=="ar") "الدفعة الأولى" else "Down Payment", input.downPayment) { onInputChanged(input.copy(downPayment = it)) }
-                }
+                InField(if(currentLang=="ar") "الدفعة الأولى" else "Down Payment", input.downPayment) { onInputChanged(input.copy(downPayment = it)) }
                 
                 
                 var showRateInfoDialog by remember { mutableStateOf(false) }
@@ -432,8 +421,7 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                 InField(if(currentLang=="ar") "نسبة الفائدة السنوية (%)" else "Annual Interest Rate (%)", input.annualRate) { onInputChanged(input.copy(annualRate = it)) }
                 
                 InField(
-                    if(isExistingLoan) (if(currentLang=="ar") "الأشهر المتبقية" else "Remaining Months") 
-                    else (if(currentLang=="ar") "مدة القرض (بالأشهر)" else "Loan Term (Months)"), 
+                    if(currentLang=="ar") "مدة القرض (بالأشهر)" else "Loan Term (Months)",
                     input.months.toDouble()
                 ) { onInputChanged(input.copy(months = it.toInt())) }
                 
@@ -2565,6 +2553,121 @@ fun FinancialProfileTab(profile: PersonalFinanceProfile, currentLang: String, cu
 
         item {
             Spacer(Modifier.height(20.dp))
+            Text(
+                text = "Produced by Khalil Badarin | تم التطوير بواسطة خليل بدارين",
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                textAlign = TextAlign.Center,
+                fontSize = 10.sp,
+                color = CalcColors.textMuted()
+            )
+        }
+    }
+}
+
+@Composable
+fun ContinueLoanTab(currentLang: String) {
+    var remainingBalance by remember { mutableStateOf(25000.0) }
+    var remainingMonths by remember { mutableStateOf(60.0) }
+    var currentEMI by remember { mutableStateOf(500.0) }
+    var annualRate by remember { mutableStateOf(5.0) }
+
+    val formatter = remember { DecimalFormat("#,##0.00") }
+    val isArabic = currentLang == "ar"
+
+    // Calculate theoretical EMI based on inputs
+    val r = (annualRate / 100.0) / 12.0
+    val n = remainingMonths.coerceAtLeast(1.0)
+    val theoreticalEMI = if (r > 0 && remainingBalance > 0) {
+        val powN = Math.pow(1.0 + r, n)
+        (remainingBalance * r * powN) / (powN - 1.0)
+    } else if (remainingBalance > 0) {
+        remainingBalance / n
+    } else {
+        0.0
+    }
+
+    val hiddenMonthlyFees = (currentEMI - theoreticalEMI).coerceAtLeast(0.0)
+    val totalHiddenFees = hiddenMonthlyFees * n
+
+    val totalInterest = (theoreticalEMI * n) - remainingBalance
+    val totalToPay = currentEMI * n
+
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                Column {
+                    Text(if(isArabic) "تحليل القرض الحالي" else "Current Loan Analysis", fontSize = 22.sp, fontWeight = FontWeight.Black, color = CalcColors.textPrimary())
+                    Text(if(isArabic) "اكتشف التكلفة الخفية وتفاصيل قرضك" else "DISCOVER HIDDEN FEES AND DETAILS", fontSize = 10.sp, color = CalcColors.accent(), letterSpacing = 1.sp)
+                }
+                Icon(Icons.Default.Autorenew, null, tint = CalcColors.accent(), modifier = Modifier.size(32.dp))
+            }
+            Spacer(Modifier.height(20.dp))
+        }
+
+        item {
+            PremiumCard {
+                SectionHeader(if(isArabic) "بيانات القرض من البنك" else "Bank Loan Data")
+                InField(if(isArabic) "الرصيد المتبقي الحالي (JOD)" else "Current Remaining Balance (JOD)", remainingBalance) { remainingBalance = it }
+                InField(if(isArabic) "الأشهر المتبقية" else "Remaining Months", remainingMonths) { remainingMonths = it }
+                InField(if(isArabic) "نسبة الفائدة السنوية (%)" else "Annual Interest Rate (%)", annualRate) { annualRate = it }
+                InField(if(isArabic) "القسط الشهري الفعلي (JOD)" else "Actual Monthly EMI (JOD)", currentEMI) { currentEMI = it }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
+        if (remainingBalance > 0 && remainingMonths > 0) {
+            item {
+                PremiumCard(gradient = true) {
+                    SectionHeader(if(isArabic) "التحليل المالي الدقيق" else "Deep Financial Analysis", light = true)
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Column(horizontalAlignment = Alignment.Start) {
+                            Text(if(isArabic) "القسط الفعلي" else "Actual EMI", fontSize = 12.sp, color = Color.White.copy(0.7f))
+                            Text("JOD ${formatter.format(currentEMI)}", fontSize = 24.sp, fontWeight = FontWeight.Black, color = Color.White)
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(if(isArabic) "القسط النظري (بدون رسوم)" else "Theoretical EMI (No Fees)", fontSize = 12.sp, color = Color.White.copy(0.7f))
+                            Text("JOD ${formatter.format(theoreticalEMI)}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = if(hiddenMonthlyFees > 0) Color(0xFFFF5252) else Color(0xFF4CAF50))
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    Divider(color = Color.White.copy(0.1f))
+                    Spacer(Modifier.height(16.dp))
+
+                    if (hiddenMonthlyFees > 0.01) {
+                        ResItem(if(isArabic) "رسوم/تأمينات شهرية خفية" else "Hidden Monthly Fees/Ins.", "JOD ${formatter.format(hiddenMonthlyFees)}", Color(0xFFFFB74D), isBold = true)
+                        ResItem(if(isArabic) "إجمالي الرسوم الخفية المتبقية" else "Total Hidden Fees Remaining", "JOD ${formatter.format(totalHiddenFees)}", Color(0xFFFFB74D))
+                    } else {
+                        Text(if(isArabic) "✅ القسط متطابق تماماً مع الحسبة البنكية، لا توجد رسوم خفية." else "✅ EMI matches calculation perfectly, no hidden fees.", color = Color(0xFF4CAF50), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    ResItem(if(isArabic) "إجمالي الفوائد المتبقية" else "Total Interest Remaining", "JOD ${formatter.format(totalInterest.coerceAtLeast(0.0))}", Color.White.copy(0.7f))
+                    ResItem(if(isArabic) "إجمالي المطلوب دفعه للبنك" else "Total Amount to Pay", "JOD ${formatter.format(totalToPay)}", Color.White, isBold = true)
+
+                    Spacer(Modifier.height(16.dp))
+
+                    if (hiddenMonthlyFees > 0.01) {
+                        Surface(color = Color(0xFFFFF3E0), shape = RoundedCornerShape(8.dp)) {
+                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFEF6C00))
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    if(isArabic) "البنك يقتطع ${formatter.format(hiddenMonthlyFees)} دينار شهرياً كرسوم إضافية أو تأمين غير معلن في نسبة الفائدة."
+                                    else "The bank deducts ${formatter.format(hiddenMonthlyFees)} JOD monthly as extra fees or insurance not reflected in the interest rate.",
+                                    fontSize = 11.sp, color = Color(0xFFE65100)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Spacer(Modifier.height(40.dp))
             Text(
                 text = "Produced by Khalil Badarin | تم التطوير بواسطة خليل بدارين",
                 modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
