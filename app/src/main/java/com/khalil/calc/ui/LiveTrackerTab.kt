@@ -3,6 +3,8 @@ package com.khalil.calc.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.khalil.calc.logic.ActiveLoan
+import com.khalil.calc.logic.LoanCategory
 import com.khalil.calc.logic.LoanDao
 import com.khalil.calc.logic.LoanEngine
 import com.khalil.calc.logic.RateType
@@ -63,7 +66,16 @@ fun LiveTrackerTab(dao: LoanDao, currentLang: String) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red.copy(alpha = 0.5f))
                             }
                         }
-                        Spacer(Modifier.height(8.dp))
+
+                        Text(
+                            text = when(activeLoan.loanCategory) {
+                                LoanCategory.PERSONAL -> if (isArabic) "قرض شخصي" else "Personal Loan"
+                                LoanCategory.AUTO -> if (isArabic) "قرض سيارة" else "Auto Loan"
+                                LoanCategory.MORTGAGE -> if (isArabic) "قرض عقاري" else "Mortgage Loan"
+                                LoanCategory.OTHER -> if (isArabic) "قرض آخر" else "Other Loan"
+                            }, fontSize = 12.sp, color = CalcColors.accent()
+                        )
+                        Spacer(Modifier.height(12.dp))
                         
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                             Column {
@@ -126,36 +138,77 @@ fun LiveTrackerTab(dao: LoanDao, currentLang: String) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddLiveLoanDialog(isArabic: Boolean, onDismiss: () -> Unit, onSave: (ActiveLoan) -> Unit) {
     var name by remember { mutableStateOf("") }
+    var originalAsset by remember { mutableStateOf("") }
     var currentBalance by remember { mutableStateOf("") }
+    var currentEMI by remember { mutableStateOf("") }
     var originalMonths by remember { mutableStateOf("") }
     var currentRate by remember { mutableStateOf("") }
     var startDateText by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))) }
+    var category by remember { mutableStateOf<LoanCategory>(LoanCategory.PERSONAL) }
+    var rateType by remember { mutableStateOf(RateType.REDUCING) }
+
+    var categoryExpanded by remember { mutableStateOf(false) }
+    var rateTypeExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if(isArabic) "إضافة قرض حي للتتبع" else "Add Live Loan") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(if(isArabic) "اسمح القرض (مثال: شقة)" else "Loan Name") }, singleLine = true)
-                OutlinedTextField(value = currentBalance, onValueChange = { currentBalance = it }, label = { Text(if(isArabic) "رصيدك الفعلي اليوم بالبنك" else "Exact Current Balance") }, singleLine = true)
-                OutlinedTextField(value = originalMonths, onValueChange = { originalMonths = it }, label = { Text(if(isArabic) "المدة الأصلية بالشهور" else "Original Term (Months)") }, singleLine = true)
-                OutlinedTextField(value = currentRate, onValueChange = { currentRate = it }, label = { Text(if(isArabic) "النسبة السنوية الحالية %" else "Current Annual Rate %") }, singleLine = true)
-                OutlinedTextField(value = startDateText, onValueChange = { startDateText = it }, label = { Text(if(isArabic) "تاريخ بداية القرض (yyyy-MM-dd)" else "Start Date (yyyy-MM-dd)") }, singleLine = true)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(if(isArabic) "اسم القرض (مثال: شقة)" else "Loan Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                ExposedDropdownMenuBox(expanded = categoryExpanded, onExpandedChange = { categoryExpanded = it }) {
+                    OutlinedTextField(
+                        value = when(category) { LoanCategory.PERSONAL -> if(isArabic) "شخصي" else "Personal"; LoanCategory.AUTO -> if(isArabic) "سيارة" else "Auto"; LoanCategory.MORTGAGE -> if(isArabic) "عقاري" else "Mortgage"; LoanCategory.OTHER -> if(isArabic) "آخر" else "Other" },
+                        onValueChange = {}, readOnly = true, label = { Text(if(isArabic) "نوع القرض" else "Loan Type") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
+                        DropdownMenuItem(text = { Text(if(isArabic) "شخصي" else "Personal") }, onClick = { category = LoanCategory.PERSONAL; categoryExpanded = false })
+                        DropdownMenuItem(text = { Text(if(isArabic) "سيارة" else "Auto") }, onClick = { category = LoanCategory.AUTO; categoryExpanded = false })
+                        DropdownMenuItem(text = { Text(if(isArabic) "عقاري" else "Mortgage") }, onClick = { category = LoanCategory.MORTGAGE; categoryExpanded = false })
+                        DropdownMenuItem(text = { Text(if(isArabic) "آخر" else "Other") }, onClick = { category = LoanCategory.OTHER; categoryExpanded = false })
+                    }
+                }
+
+                ExposedDropdownMenuBox(expanded = rateTypeExpanded, onExpandedChange = { rateTypeExpanded = it }) {
+                    OutlinedTextField(
+                        value = when(rateType) { RateType.REDUCING -> if(isArabic) "متناقصة" else "Reducing"; RateType.FLAT -> if(isArabic) "ثابتة" else "Flat"; RateType.MURABAHA -> if(isArabic) "مرابحة" else "Murabaha"; else -> rateType.name },
+                        onValueChange = {}, readOnly = true, label = { Text(if(isArabic) "نوع الفائدة" else "Rate Type") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = rateTypeExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = rateTypeExpanded, onDismissRequest = { rateTypeExpanded = false }) {
+                        DropdownMenuItem(text = { Text(if(isArabic) "متناقصة" else "Reducing") }, onClick = { rateType = RateType.REDUCING; rateTypeExpanded = false })
+                        DropdownMenuItem(text = { Text(if(isArabic) "ثابتة" else "Flat") }, onClick = { rateType = RateType.FLAT; rateTypeExpanded = false })
+                        DropdownMenuItem(text = { Text(if(isArabic) "مرابحة" else "Murabaha") }, onClick = { rateType = RateType.MURABAHA; rateTypeExpanded = false })
+                    }
+                }
+
+                OutlinedTextField(value = originalAsset, onValueChange = { originalAsset = it }, label = { Text(if(isArabic) "مبلغ القرض الأصلي" else "Original Loan Amount") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = currentBalance, onValueChange = { currentBalance = it }, label = { Text(if(isArabic) "رصيدك الفعلي اليوم بالبنك" else "Exact Current Balance") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = currentEMI, onValueChange = { currentEMI = it }, label = { Text(if(isArabic) "القسط الشهري الحالي" else "Current EMI") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = originalMonths, onValueChange = { originalMonths = it }, label = { Text(if(isArabic) "المدة الأصلية بالشهور" else "Original Term (Months)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = currentRate, onValueChange = { currentRate = it }, label = { Text(if(isArabic) "النسبة السنوية الحالية %" else "Current Annual Rate %") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = startDateText, onValueChange = { startDateText = it }, label = { Text(if(isArabic) "تاريخ بداية القرض (yyyy-MM-dd)" else "Start Date (yyyy-MM-dd)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
             Button(onClick = {
                 try {
+                    val origAmount = originalAsset.toDoubleOrNull() ?: currentBalance.toDoubleOrNull() ?: 0.0
                     val activeLoan = ActiveLoan(
                         name = name.takeIf { it.isNotBlank() } ?: "Live Loan",
-                        OriginalAssetPrice = currentBalance.toDoubleOrNull() ?: 0.0, // using current balance as a proxy for asset
+                        loanCategory = category,
+                        currentEMI = currentEMI.toDoubleOrNull() ?: 0.0,
+                        OriginalAssetPrice = origAmount,
                         OriginalDownPayment = 0.0,
                         OriginalMonths = originalMonths.toIntOrNull() ?: 12,
                         OriginalAnnualRate = currentRate.toDoubleOrNull() ?: 5.0,
-                        rateType = RateType.REDUCING,
+                        rateType = rateType,
                         startDateMillis = LocalDate.parse(startDateText).toEpochDay() * (1000 * 60 * 60 * 24),
                         paymentDay = 1,
                         currentBalanceOverride = currentBalance.toDoubleOrNull() ?: 0.0,
