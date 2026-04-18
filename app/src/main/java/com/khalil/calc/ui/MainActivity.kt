@@ -165,6 +165,7 @@ fun MainScreen(currentLang: String, onLanguageChange: () -> Unit, isDark: Boolea
 @Composable
 fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () -> Unit, onInputChanged: (LoanInput) -> Unit, dao: LoanDao, isDark: Boolean, onThemeToggle: () -> Unit, financeProfile: PersonalFinanceProfile = PersonalFinanceProfile(), viewModel: LoanViewModel) {
     var showAdvanced by remember { mutableStateOf(false) }
+    var selectedLoanTypeIndex by remember { mutableStateOf(-1) }
 
     val resultArabic by viewModel.resultArabic.collectAsState()
     val resultEnglish by viewModel.resultEnglish.collectAsState()
@@ -328,8 +329,10 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                 Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val types = if(currentLang == "ar") listOf("شخصي","سيارة","عقاري") else listOf("Personal","Auto","Mortgage")
                     types.forEachIndexed { index, type ->
+                        val isSelected = selectedLoanTypeIndex == index
                         Button(
                             onClick = {
+                                selectedLoanTypeIndex = index
                                 val newMonths = when(index) { 0 -> 84; 1 -> 72; 2 -> 240; else -> input.months }
                                 val newRateType = when(index) { 1 -> RateType.FLAT; else -> RateType.REDUCING }
                                 val newPrice = when(index) { 0 -> 15000.0; 1 -> 22000.0; 2 -> 100000.0; else -> input.assetPrice }
@@ -337,7 +340,10 @@ fun CalculatorTab(input: LoanInput, currentLang: String, onLanguageChange: () ->
                                 val newRate = when(index) { 0 -> 9.5; 1 -> 4.5; 2 -> 7.5; else -> input.annualRate }
                                 onInputChanged(input.copy(months = newMonths, rateType = newRateType, downPayment = newDown, assetPrice = newPrice, annualRate = newRate))
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = CalcColors.accent().copy(alpha = 0.1f), contentColor = CalcColors.accent()),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isSelected) CalcColors.accent() else CalcColors.accent().copy(alpha = 0.1f),
+                                contentColor = if (isSelected) Color.White else CalcColors.accent()
+                            ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(0.dp)
@@ -2592,6 +2598,24 @@ fun ContinueLoanTab(currentLang: String) {
     val totalInterest = (theoreticalEMI * n) - remainingBalance
     val totalToPay = currentEMI * n
 
+    // Revolutionary Feature: Escape Plan Simulator
+    var simulatedExtraPayment by remember { mutableStateOf(0.0) }
+
+    val engine = remember { LoanEngine() }
+    val baseInput = LoanInput(
+        assetPrice = remainingBalance,
+        downPayment = 0.0,
+        months = n.toInt(),
+        annualRate = annualRate,
+        rateType = RateType.REDUCING,
+        monthlyInsurance = hiddenMonthlyFees
+    )
+
+    val originalResult = remember(baseInput, isArabic) { engine.calculate(baseInput, isArabic) }
+
+    val acceleratedInput = baseInput.copy(extraMonthly = simulatedExtraPayment)
+    val acceleratedResult = remember(acceleratedInput, isArabic) { engine.calculate(acceleratedInput, isArabic) }
+
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
@@ -2660,6 +2684,93 @@ fun ContinueLoanTab(currentLang: String) {
                                     fontSize = 11.sp, color = Color(0xFFE65100)
                                 )
                             }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    LoanPie(originalResult, light = true)
+                }
+            }
+
+            item {
+                Spacer(Modifier.height(24.dp))
+                PremiumCard(gradient = false) {
+                    SectionHeader(if(isArabic) "🚀 خطة الهروب من البنك (Bank Escape Plan)" else "🚀 Bank Escape Plan")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if(isArabic) "ماذا لو دفعت مبلغاً إضافياً كل شهر لتسحق أرباح البنك وتقصّر المدة؟ جرب المؤشر أدناه!"
+                        else "What if you pay an extra amount monthly to crush bank profits and shorten your term? Try the slider!",
+                        fontSize = 12.sp, color = CalcColors.textMuted()
+                    )
+                    Spacer(Modifier.height(16.dp))
+
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Slider(
+                            value = simulatedExtraPayment.toFloat(),
+                            onValueChange = { simulatedExtraPayment = it.toDouble() },
+                            valueRange = 0f..1000f,
+                            steps = 99,
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(thumbColor = Color(0xFF2E7D32), activeTrackColor = Color(0xFF2E7D32))
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("+${formatter.format(simulatedExtraPayment)}", fontWeight = FontWeight.Black, color = Color(0xFF2E7D32), fontSize = 16.sp)
+                    }
+
+                    if (simulatedExtraPayment > 0) {
+                        val savedMonths = originalResult.schedule.size - acceleratedResult.schedule.size
+                        val savedMoney = originalResult.totalPayment - acceleratedResult.totalPayment
+
+                        Surface(color = Color(0xFFE8F5E9), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(if(isArabic) "النتائج الثورية!" else "Revolutionary Results!", color = Color(0xFF2E7D32), fontWeight = FontWeight.Black, fontSize = 16.sp)
+                                Spacer(Modifier.height(8.dp))
+                                Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(if(isArabic) "وفرت أشهراً" else "Months Saved", fontSize = 11.sp, color = Color(0xFF388E3C))
+                                        Text("$savedMonths ${if(isArabic) "شهر" else "mo"}", fontSize = 24.sp, fontWeight = FontWeight.Black, color = Color(0xFF1B5E20))
+                                    }
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(if(isArabic) "وفرت نقوداً" else "Money Saved", fontSize = 11.sp, color = Color(0xFF388E3C))
+                                        Text("JOD ${formatter.format(savedMoney)}", fontSize = 24.sp, fontWeight = FontWeight.Black, color = Color(0xFF1B5E20))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(Modifier.height(24.dp))
+                SectionHeader(if(isArabic) "جدول سداد القرض المتوقع" else "Expected Amortization Schedule")
+                Spacer(Modifier.height(8.dp))
+            }
+
+            item {
+                var cumPrincipal = 0.0
+                var cumInterest = 0.0
+                var cumTotal = 0.0
+                val totalInterestAll = acceleratedResult.schedule.sumOf { it.interestPart }
+                var expandedMonth by remember { mutableStateOf(-1) }
+
+                Column {
+                    acceleratedResult.schedule.forEach { m ->
+                        cumPrincipal += m.principalPart
+                        cumInterest += m.interestPart
+                        cumTotal += m.payment
+                        val isExpanded = expandedMonth == m.monthNumber
+                        ScheduleRow(
+                            m = m,
+                            formatter = formatter,
+                            isArabic = isArabic,
+                            isExpanded = isExpanded,
+                            cumPrincipal = cumPrincipal,
+                            cumInterest = cumInterest,
+                            cumTotal = cumTotal,
+                            totalInterestAll = totalInterestAll
+                        ) {
+                            expandedMonth = if (expandedMonth == m.monthNumber) -1 else m.monthNumber
                         }
                     }
                 }
